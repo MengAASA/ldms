@@ -100,6 +100,7 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
     <div class="panel panel-default" style="margin-bottom:20px;">
         <div class="panel-heading"><strong><i class="fa fa-sitemap"></i> ORGANIZATION STRUCTURE</strong></div>
         <div class="panel-body">
+            <div id="hod-health" class="alert alert-warning" style="display:none;"></div>
             <div class="row">
                 <div class="col-md-12">
                     <div class="panel panel-default">
@@ -540,9 +541,50 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
     function alertError(msg) { swal('Error', msg || 'An error occurred.', 'error'); }
     function alertSuccess(msg) { swal('Success', msg, 'success'); }
 
+    // ===== HOD LINK CHECK =====
+
+    // Staff records carry their own copy of the department's HOD. Shown only
+    // when the two disagree; refreshed with the division list.
+    function loadHodHealth() {
+        $.post('fetch_org.php', { action: 'load_hod_health' }, function (data) {
+            var box = $('#hod-health');
+            if (!data || (!data.staff_count && (!data.departments || data.departments.length === 0))) {
+                box.hide().empty();
+                return;
+            }
+            var html = '<strong><i class="fa fa-exclamation-triangle"></i> HOD links need attention</strong>';
+            if (data.departments && data.departments.length) {
+                html += '<ul style="margin:6px 0 0;">';
+                $.each(data.departments, function (i, row) {
+                    html += '<li><strong>' + escHtml(row.department) + '</strong>: ' + escHtml(row.issue) + '</li>';
+                });
+                html += '</ul>';
+            }
+            if (data.staff_count) {
+                html += '<div style="margin-top:8px;">' + data.staff_count + ' active staff do not report to their department\'s HOD. '
+                    + 'To correct one, open it in Staff List and save it; to correct a whole department, re-assign its HOD here.</div>';
+                html += '<table class="table table-condensed" style="margin:6px 0 0;background:transparent;"><thead><tr>'
+                    + '<th>Staff</th><th>Department</th><th>Reports to now</th><th>Should report to</th></tr></thead><tbody>';
+                $.each(data.staff, function (i, row) {
+                    var current = row.current_staffno ? escHtml(row.current_name) + ' (' + escHtml(row.current_staffno) + ')' : 'Nobody';
+                    var expected = (row.is_dept_hod == 1) ? 'Nobody (is the HOD)'
+                        : (row.expected_staffno ? escHtml(row.expected_name) + ' (' + escHtml(row.expected_staffno) + ')' : 'Nobody (no HOD assigned)');
+                    html += '<tr><td>' + escHtml(row.staffname) + ' (' + escHtml(row.staffno) + ')</td><td>' + escHtml(row.department)
+                        + '</td><td>' + current + '</td><td>' + expected + '</td></tr>';
+                });
+                html += '</tbody></table>';
+                if (data.staff_count > data.staff.length) {
+                    html += '<div class="text-muted">Showing the first ' + data.staff.length + '.</div>';
+                }
+            }
+            box.html(html).show();
+        }, 'json');
+    }
+
     // ===== DIVISIONS =====
 
     function loadDivisions() {
+        loadHodHealth();
         $.post('fetch_org.php', { action: 'load_divisions' }, function (data) {
             var html = '';
             if (!data || data.length === 0) {
@@ -850,6 +892,7 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
             if (res.message === 'update') {
                 $('#modalAssignHod').modal('hide');
                 loadDepartments();
+                loadHodHealth();
                 swal('HOD Updated', 'Head of Department has been assigned and all staff in this department have been updated.', 'success');
             } else {
                 alertError(res.detail || 'Failed to assign HOD.');
@@ -950,6 +993,7 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
             if (res.message === 'update') {
                 $('#modalMoveSect').modal('hide');
                 loadSections();
+                loadHodHealth();
             } else {
                 alertError(res.detail || 'Failed to move section.');
             }
@@ -1083,6 +1127,7 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
                 if (res.message === 'transfer') {
                     $('#modalTransferStaff').modal('hide');
                     loadDepartments();
+                    loadHodHealth();
                     swal('Transfer Complete', res.count + ' staff member(s) successfully transferred.', 'success');
                 } else {
                     alertError(res.detail || 'Transfer failed.');

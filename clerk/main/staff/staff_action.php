@@ -21,9 +21,14 @@
                 $section = '';
                 $section_id = null;
             }
+
+            // hodid follows the department's assigned HOD (org.php > Assign HOD),
+            // the single source of truth - see getDepartmentHodId().
+            $hodid = getDepartmentHodId($department_id) ?: 0;
+
             $sectionIdValue = is_null($section_id) ? 'NULL' : "'$section_id'";
             $password = md5('P@ss1234');
-            $sql = "INSERT INTO `user` (`staffno`,`password`,`staffname`,`gender`,`designation`,`department`,`division`,`section`,`division_id`,`department_id`,`section_id`,`status`) values ('$staffno','$password', '$staffname', '$gender', 'CONTRACT', '$department', '$division', '$section', '$division_id', '$department_id', $sectionIdValue, '$status')";
+            $sql = "INSERT INTO `user` (`staffno`,`password`,`staffname`,`gender`,`designation`,`department`,`division`,`section`,`division_id`,`department_id`,`section_id`,`status`,`hodid`) values ('$staffno','$password', '$staffname', '$gender', 'CONTRACT', '$department', '$division', '$section', '$division_id', '$department_id', $sectionIdValue, '$status', '$hodid')";
             if(mysqli_query($conn, $sql)){
                 echo json_encode(['message' => 'insert']);
             }else {
@@ -47,8 +52,17 @@
                 $section = '';
                 $section_id = null;
             }
+
+            // hodid follows the department's assigned HOD (org.php > Assign HOD),
+            // the single source of truth - see getDepartmentHodId(). Guarded so a
+            // department's own HOD is never recorded as reporting to themselves.
+            $hodnew = getDepartmentHodId($department_id) ?: 0;
+            if ($hodnew === (int) $id) {
+                $hodnew = 0;
+            }
+
             $sectionIdValue = is_null($section_id) ? 'NULL' : "'$section_id'";
-            $sql = "UPDATE `user` SET `staffno` = '$staffno', `staffname` = '$staffname', `gender` = '$gender', `designation` = 'CONTRACT', `department` = '$department', `division` = '$division', `section` = '$section', `division_id` = '$division_id', `department_id` = '$department_id', `section_id` = $sectionIdValue, `status` = '$status' WHERE `id` = '$id'";
+            $sql = "UPDATE `user` SET `staffno` = '$staffno', `staffname` = '$staffname', `gender` = '$gender', `designation` = 'CONTRACT', `department` = '$department', `division` = '$division', `section` = '$section', `division_id` = '$division_id', `department_id` = '$department_id', `section_id` = $sectionIdValue, `status` = '$status', `hodid` = '$hodnew' WHERE `id` = '$id'";
             if(mysqli_query($conn, $sql)){
                 echo json_encode(['message' => 'update']);
             }else {

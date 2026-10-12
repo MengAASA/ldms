@@ -125,6 +125,23 @@ if ($action == 'assign_hod') {
     $department_id = (int) ($_POST['department_id'] ?? 0);
     $hod_user_id = (isset($_POST['hod_user_id']) && $_POST['hod_user_id'] !== '') ? (int) $_POST['hod_user_id'] : null;
     if (!$department_id) respond(['message' => 'error', 'detail' => 'Invalid input.']);
+
+    // Same rule as the Assign HOD dropdown, re-checked here so it holds however
+    // the request arrives: the HOD must be a current member of the department.
+    if ($hod_user_id !== null) {
+        $check = $conn->prepare("SELECT COUNT(*) FROM user WHERE id = ? AND department_id = ? AND UPPER(COALESCE(status, '')) <> 'RESIGN'");
+        $check->bind_param('ii', $hod_user_id, $department_id);
+        $check->execute();
+        $check->bind_result($count);
+        $check->fetch();
+        $check->close();
+        if ($count == 0) {
+            respond(['message' => 'error', 'detail' => 'The selected HOD is not an active staff member of this department.']);
+        }
+    }
+
+    // trg_departments_hod_update repoints every staff in the department,
+    // and clears the new HOD's own hodid - see scripts/hod_trigger.sql.
     $stmt = $conn->prepare("UPDATE departments SET hod_user_id = ? WHERE id = ?");
     $stmt->bind_param('ii', $hod_user_id, $department_id);
     respond($stmt->execute() ? ['message' => 'update'] : ['message' => 'error', 'detail' => $conn->error]);
@@ -167,12 +184,13 @@ if ($action == 'move_section') {
     if (!$id || !$new_department_id) respond(['message' => 'error', 'detail' => 'Invalid input.']);
 
     $deptRow = $conn->query(
-        "SELECT dp.id, dp.name, dv.id AS div_id, dv.name AS div_name
+        "SELECT dp.id, dp.name, dp.hod_user_id, dv.id AS div_id, dv.name AS div_name
          FROM departments dp
          JOIN divisions dv ON dv.id = dp.division_id
          WHERE dp.id = $new_department_id"
     )->fetch_assoc();
     if (!$deptRow) respond(['message' => 'error', 'detail' => 'Target department not found.']);
+    $hodid = $deptRow['hod_user_id'] ? (int) $deptRow['hod_user_id'] : 0;
 
     $conn->begin_transaction();
     try {
@@ -180,8 +198,10 @@ if ($action == 'move_section') {
         $stmt1->bind_param('ii', $new_department_id, $id);
         $stmt1->execute();
 
-        $stmt2 = $conn->prepare("UPDATE user SET department = ?, department_id = ?, division = ?, division_id = ? WHERE section_id = ?");
-        $stmt2->bind_param('sisii', $deptRow['name'], $new_department_id, $deptRow['div_name'], $deptRow['div_id'], $id);
+        // hodid moves with the department, same as transfer_staff - without
+        // it the section's staff keep reporting to their old department's HOD.
+        $stmt2 = $conn->prepare("UPDATE user SET department = ?, department_id = ?, division = ?, division_id = ?, hodid = IF(id = ?, 0, ?) WHERE section_id = ?");
+        $stmt2->bind_param('sisiiii', $deptRow['name'], $new_department_id, $deptRow['div_name'], $deptRow['div_id'], $hodid, $hodid, $id);
         $stmt2->execute();
 
         $conn->commit();
@@ -238,6 +258,20 @@ if ($action == 'transfer_staff') {
     $hodid = $deptRow['hod_user_id'] ? (int) $deptRow['hod_user_id'] : 0;
     $idList = implode(',', $ids);
 
+    // Moving a department's assigned HOD out would leave that department
+    // pointing at a HOD who is no longer in it.
+    $stillHod = [];
+    $res = $conn->query(
+        "SELECT u.staffno, dp.name FROM departments dp JOIN user u ON u.id = dp.hod_user_id
+         WHERE dp.hod_user_id IN ($idList) AND dp.id <> $new_department_id"
+    );
+    while ($row = $res->fetch_assoc()) {
+        $stillHod[] = $row['staffno'] . ' (HOD of ' . $row['name'] . ')';
+    }
+    if (!empty($stillHod)) {
+        respond(['message' => 'error', 'detail' => 'Assign a new HOD to the department first, then transfer: ' . implode(', ', $stillHod) . '.']);
+    }
+
     $conn->begin_transaction();
     try {
         if ($new_section_id) {
@@ -250,6 +284,10 @@ if ($action == 'transfer_staff') {
             $stmt->bind_param('sisii', $deptRow['name'], $new_department_id, $deptRow['div_name'], $deptRow['div_id'], $hodid);
         }
         $stmt->execute();
+        // The target department's own HOD never reports to themselves.
+        if ($hodid) {
+            $conn->query("UPDATE user SET hodid = 0 WHERE id = $hodid AND id IN ($idList)");
+        }
         $conn->commit();
         respond(['message' => 'transfer', 'count' => count($ids)]);
     } catch (Exception $e) {

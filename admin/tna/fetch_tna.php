@@ -282,7 +282,7 @@ function allDepartment()
 function tnaStatus()
 {
     global $conn;
-    $sql = 'SELECT DISTINCT u.department, hod.staffname AS hod_name, MAX(t.status) AS tna_status FROM user u LEFT JOIN user hod ON u.hodid = hod.id LEFT JOIN ' . ldmsPlanningYearTable() . ' t ON u.id = t.userid WHERE hod.staffname IS NOT NULL GROUP BY u.department, u.hodid, hod.staffname;';
+    $sql = 'SELECT DISTINCT u.department, hod.staffname AS hod_name, MAX(t.status) AS tna_status FROM user u LEFT JOIN user hod ON u.hodid = hod.id LEFT JOIN ' . ldmsPlanningYearTable() . ' t ON u.id = t.userid WHERE hod.staffname IS NOT NULL AND UPPER(COALESCE(u.status, \'\')) <> \'RESIGN\' AND u.id NOT IN (SELECT hodid FROM user WHERE hodid IS NOT NULL) GROUP BY u.department, u.hodid, hod.staffname;';
     $query = mysqli_query($conn, $sql);
     $output = [];
     $index = 1;

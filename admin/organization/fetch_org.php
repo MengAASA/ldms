@@ -156,6 +156,60 @@ if ($action == 'load_all_departments') {
     respond($rows);
 }
 
+if ($action == 'load_hod_health') {
+    // user.hodid is a copy of departments.hod_user_id kept in step by
+    // trg_departments_hod_update and the staff forms. This lists every place
+    // the two disagree, so drift is seen here rather than in a report.
+    $notResigned = "UPPER(COALESCE(%s.status, '')) <> 'RESIGN'";
+
+    $where = sprintf($notResigned, 'u') . "
+              AND COALESCE(u.hodid, 0) <> IF(d.hod_user_id IS NULL OR d.hod_user_id = u.id, 0, d.hod_user_id)";
+    $from = "FROM user u JOIN departments d ON d.id = u.department_id";
+
+    $staffCount = (int) $conn->query("SELECT COUNT(*) AS c $from WHERE $where")->fetch_assoc()['c'];
+    $staff = [];
+    if ($staffCount > 0) {
+        $result = $conn->query(
+            "SELECT u.staffno, u.staffname, d.name AS department, (d.hod_user_id = u.id) AS is_dept_hod,
+                    cur.staffno AS current_staffno, cur.staffname AS current_name,
+                    ex.staffno AS expected_staffno, ex.staffname AS expected_name
+             $from
+             LEFT JOIN user cur ON cur.id = u.hodid
+             LEFT JOIN user ex ON ex.id = d.hod_user_id
+             WHERE $where
+             ORDER BY d.name, u.staffname LIMIT 50"
+        );
+        while ($row = $result->fetch_assoc()) {
+            $staff[] = $row;
+        }
+    }
+
+    $departments = [];
+    $result = $conn->query(
+        "SELECT d.name AS department, h.staffno, h.staffname,
+                (" . sprintf("UPPER(COALESCE(%s.status, '')) = 'RESIGN'", 'h') . ") AS hod_resigned,
+                (h.id IS NOT NULL AND NOT (h.department_id <=> d.id)) AS hod_elsewhere,
+                (SELECT COUNT(*) FROM user s WHERE s.department_id = d.id AND " . sprintf($notResigned, 's') . ") AS active_staff
+         FROM departments d
+         LEFT JOIN user h ON h.id = d.hod_user_id
+         ORDER BY d.name"
+    );
+    while ($row = $result->fetch_assoc()) {
+        $hod = $row['staffname'] . ' (' . $row['staffno'] . ')';
+        if ($row['staffno'] === null) {
+            if ((int) $row['active_staff'] > 0) {
+                $departments[] = ['department' => $row['department'], 'issue' => 'No HOD assigned, ' . $row['active_staff'] . ' active staff.'];
+            }
+        } elseif ($row['hod_resigned']) {
+            $departments[] = ['department' => $row['department'], 'issue' => "Assigned HOD $hod has resigned."];
+        } elseif ($row['hod_elsewhere']) {
+            $departments[] = ['department' => $row['department'], 'issue' => "Assigned HOD $hod is no longer in this department."];
+        }
+    }
+
+    respond(['staff_count' => $staffCount, 'staff' => $staff, 'departments' => $departments]);
+}
+
 if ($action == 'load_sm_whitelist') {
     // user.staffno and skill_matrix_whitelist.staffno were created with different
     // default collations (general_ci vs 0900_ai_ci) - joining them without an

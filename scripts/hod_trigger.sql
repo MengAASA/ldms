@@ -5,15 +5,14 @@ AFTER UPDATE ON departments
 FOR EACH ROW
 BEGIN
     IF NOT (NEW.hod_user_id <=> OLD.hod_user_id) THEN
-        -- Excludes the HOD's own row: without this, a department head who
-        -- is themselves a member of their own department gets their hodid
-        -- set to their own id (self-loop). This was live in production
-        -- data (40 staff on 2026-09-04) before this guard was added -
-        -- fixing the trigger does not retroactively correct rows it
-        -- already corrupted; those need a separate one-time cleanup.
-        UPDATE user SET hodid = COALESCE(NEW.hod_user_id, 0)
-        WHERE department_id = NEW.id
-          AND id <> COALESCE(NEW.hod_user_id, 0);
+        -- Every staff in the department follows the new HOD. The HOD's own
+        -- row is set to 0 rather than skipped: skipping it (the 2026-09-04
+        -- version) avoided the self-loop but left the new HOD still
+        -- reporting to whoever they reported to before - usually the HOD
+        -- they just replaced - which showed up as a second HOD for the
+        -- department in the TNA status table (M0440, 2026-10-12).
+        UPDATE user SET hodid = IF(id = NEW.hod_user_id, 0, COALESCE(NEW.hod_user_id, 0))
+        WHERE department_id = NEW.id;
     END IF;
 END$$
 DELIMITER ;
