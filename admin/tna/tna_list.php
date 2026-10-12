@@ -166,7 +166,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                         <div class="panel-body" align="center">
                             <div class="row">
                                 <div class="col-sm-12 table-responsive">
-                                    <table id="userlist" class="table table-bordered table-striped">
+                                    <table id="userlist" class="table table-bordered table-striped" width="100%">
                                         <thead>
                                             <tr>
                                                 <th>No.</th>
@@ -200,9 +200,8 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                         </div>
                         <div class="panel-body" align="center">
                             <div class="row">
-                                <div class="col-sm-4"></div>
-                                <div class="col-sm-4 table-responsive">
-                                    <table id="gradelist" class="table table-bordered table-striped">
+                                <div class="col-sm-12 table-responsive">
+                                    <table id="gradelist" class="table table-bordered table-striped" width="100%">
                                         <thead>
                                             <tr>
                                                 <th>No.</th>
@@ -217,7 +216,6 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                                         </tbody>
                                     </table>
                                 </div>
-                                <div class="col-sm-4"></div>
                             </div>
                         </div>
                     </div>

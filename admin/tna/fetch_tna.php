@@ -39,8 +39,9 @@ if ($_POST["action"] == "load_department") {
 			ON user.id = tablea.userid 
 			WHERE department = '$department' 
 			AND designation = 'NON EXECUTIVE' 
-			AND usertype != '' 
-			AND hodid != 0 
+			AND (usertype IS NULL OR usertype != '')
+			AND hodid != 0
+			AND UPPER(COALESCE(user.status, '')) <> 'RESIGN'
 
 			UNION 
 
@@ -55,7 +56,8 @@ if ($_POST["action"] == "load_department") {
 			ON user.id = tablea.userid 
 			WHERE department = '$department' 
 			AND designation IN ('MANAGER (AM/HOS & ABOVE)', 'EXECUTIVE') 
-			AND hodid != 0;
+			AND hodid != 0
+			AND UPPER(COALESCE(user.status, '')) <> 'RESIGN';
 			";
     $query = mysqli_query($conn, $sql);
 
@@ -96,6 +98,7 @@ if ($_POST["action"] == "load_department") {
             SELECT grade, COUNT(*) AS headcount
             FROM user
             WHERE department = ? AND grade != 0
+            AND UPPER(COALESCE(status, '')) <> 'RESIGN'
             GROUP BY grade
         ) tableb ON tablea.grade = tableb.grade
     ");

@@ -22,7 +22,8 @@ if ($_POST["action"] == "load_staff") {
 				) tablea ON user.id = tablea.userid
 				WHERE hodid = '$userid' 
 				  AND designation = 'NON EXECUTIVE' 
-				  AND usertype != ''
+				  AND (usertype IS NULL OR usertype != '')
+				  AND UPPER(COALESCE(user.status, '')) <> 'RESIGN'
 				GROUP BY user.id, staffno, staffname, designation, usertype, user.section
 
 				UNION
@@ -43,7 +44,8 @@ if ($_POST["action"] == "load_staff") {
 				) tablea ON user.id = tablea.userid
 				WHERE hodid = '$userid' 
 				  AND designation IN ('MANAGER (AM/HOS & ABOVE)', 'EXECUTIVE') 
-				  AND usertype != 'HOD'
+				  AND COALESCE(usertype, '') != 'HOD'
+				  AND UPPER(COALESCE(user.status, '')) <> 'RESIGN'
 				GROUP BY user.id, staffno, staffname, designation, usertype, user.section;
 				";
 
@@ -80,7 +82,7 @@ if ($_POST["action"] == "load_staff") {
         $department = $row['department'];
     }
 
-    $sql = "select tablea.grade,id,status,headcount from (select distinct(grade) as grade,CONCAT(grade, '/', department) as id,status from tna where department = '$department' and year = '" . ldmsPlanningYear() . "')tablea join (select grade,count(*) as headcount from user where department = '$department' and grade != 0 group by grade)tableb on tablea.grade = tableb.grade";
+    $sql = "select tablea.grade,id,status,headcount from (select distinct(grade) as grade,CONCAT(grade, '/', department) as id,status from tna where department = '$department' and year = '" . ldmsPlanningYear() . "')tablea join (select grade,count(*) as headcount from user where department = '$department' and grade != 0 and UPPER(COALESCE(status, '')) <> 'RESIGN' group by grade)tableb on tablea.grade = tableb.grade";
     $query = mysqli_query($conn, $sql);
     while ($row = mysqli_fetch_assoc($query)) {
         if ($row['status'] == '' || $row['status'] == 1) {

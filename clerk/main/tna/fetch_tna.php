@@ -13,7 +13,7 @@ include_once __DIR__ . '/../../../planning_year.php';
             $department = $row['department'];
         }
 
-        $sql = "select user.id,staffno,staffname,user.section,ifnull(tablea.status,'not') as status from user left join (select distinct(userid) as userid,status from tna where year = '" . ldmsPlanningYear() . "')tablea on user.id = tablea.userid where department = '$department' and user.id != '$userid'";
+        $sql = "select user.id,staffno,staffname,user.section,ifnull(tablea.status,'not') as status from user left join (select distinct(userid) as userid,status from tna where year = '" . ldmsPlanningYear() . "')tablea on user.id = tablea.userid where department = '$department' and user.id != '$userid' and UPPER(COALESCE(user.status, '')) <> 'RESIGN'";
         $query = mysqli_query($conn,$sql);
         while($row = mysqli_fetch_assoc($query))
         {
