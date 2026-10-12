@@ -186,7 +186,7 @@ if ($action == 'load_hod_health') {
 
     $departments = [];
     $result = $conn->query(
-        "SELECT d.name AS department, h.staffno, h.staffname,
+        "SELECT d.name AS department, h.staffno, h.staffname, COALESCE(h.usertype, '') AS hod_usertype,
                 (" . sprintf("UPPER(COALESCE(%s.status, '')) = 'RESIGN'", 'h') . ") AS hod_resigned,
                 (h.id IS NOT NULL AND NOT (h.department_id <=> d.id)) AS hod_elsewhere,
                 (SELECT COUNT(*) FROM user s WHERE s.department_id = d.id AND " . sprintf($notResigned, 's') . ") AS active_staff
@@ -204,6 +204,10 @@ if ($action == 'load_hod_health') {
             $departments[] = ['department' => $row['department'], 'issue' => "Assigned HOD $hod has resigned."];
         } elseif ($row['hod_elsewhere']) {
             $departments[] = ['department' => $row['department'], 'issue' => "Assigned HOD $hod is no longer in this department."];
+        } elseif ($row['hod_usertype'] !== 'HOD') {
+            // index.php routes on usertype, so this HOD lands on the staff dashboard.
+            $type = $row['hod_usertype'] === '' ? 'blank' : "'" . $row['hod_usertype'] . "'";
+            $departments[] = ['department' => $row['department'], 'issue' => "Assigned HOD $hod has no HOD portal access (user type is $type)."];
         }
     }
 

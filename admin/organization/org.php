@@ -893,7 +893,11 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
                 $('#modalAssignHod').modal('hide');
                 loadDepartments();
                 loadHodHealth();
-                swal('HOD Updated', 'Head of Department has been assigned and all staff in this department have been updated.', 'success');
+                if (res.note) {
+                    swal('HOD Updated', 'Head of Department has been assigned and all staff in this department have been updated.\n\n' + res.note, 'warning');
+                } else {
+                    swal('HOD Updated', 'Head of Department has been assigned and all staff in this department have been updated. HOD portal access applies from their next login.', 'success');
+                }
             } else {
                 alertError(res.detail || 'Failed to assign HOD.');
             }

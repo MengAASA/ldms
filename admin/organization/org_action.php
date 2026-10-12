@@ -142,9 +142,50 @@ if ($action == 'assign_hod') {
 
     // trg_departments_hod_update repoints every staff in the department,
     // and clears the new HOD's own hodid - see scripts/hod_trigger.sql.
-    $stmt = $conn->prepare("UPDATE departments SET hod_user_id = ? WHERE id = ?");
-    $stmt->bind_param('ii', $hod_user_id, $department_id);
-    respond($stmt->execute() ? ['message' => 'update'] : ['message' => 'error', 'detail' => $conn->error]);
+    $oldRow = $conn->query("SELECT hod_user_id FROM departments WHERE id = $department_id")->fetch_assoc();
+    if (!$oldRow) respond(['message' => 'error', 'detail' => 'Department not found.']);
+    $old_hod_user_id = $oldRow['hod_user_id'] !== null ? (int) $oldRow['hod_user_id'] : null;
+
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare("UPDATE departments SET hod_user_id = ? WHERE id = ?");
+        $stmt->bind_param('ii', $hod_user_id, $department_id);
+        $stmt->execute();
+
+        // usertype = 'HOD' is what index.php routes to the HOD portal on, and
+        // nothing else in the application sets it - so it follows the
+        // assignment here. Only a blank usertype is promoted: MAIN / OFFICE /
+        // ADMIN belong to another role and are left for an admin to sort out.
+        $note = '';
+        if ($hod_user_id !== null) {
+            $stmt = $conn->prepare("UPDATE user SET usertype = 'HOD' WHERE id = ? AND COALESCE(usertype, '') = ''");
+            $stmt->bind_param('i', $hod_user_id);
+            $stmt->execute();
+
+            $typeRow = $conn->query("SELECT usertype FROM user WHERE id = $hod_user_id")->fetch_assoc();
+            if ($typeRow['usertype'] !== 'HOD') {
+                $note = "This staff's user type is '" . $typeRow['usertype'] . "', so it was not changed to HOD and they will not see the HOD portal.";
+            }
+        }
+
+        // The replaced HOD loses it, unless they still head another
+        // department or a division.
+        if ($old_hod_user_id !== null && $old_hod_user_id !== $hod_user_id) {
+            $stmt = $conn->prepare(
+                "UPDATE user SET usertype = '' WHERE id = ? AND usertype = 'HOD'
+                 AND NOT EXISTS (SELECT 1 FROM departments WHERE hod_user_id = ?)
+                 AND NOT EXISTS (SELECT 1 FROM divisions WHERE head_user_id = ?)"
+            );
+            $stmt->bind_param('iii', $old_hod_user_id, $old_hod_user_id, $old_hod_user_id);
+            $stmt->execute();
+        }
+
+        $conn->commit();
+        respond(['message' => 'update', 'note' => $note]);
+    } catch (Exception $e) {
+        $conn->rollback();
+        respond(['message' => 'error', 'detail' => $e->getMessage()]);
+    }
 }
 
 if ($action == 'assign_division_head') {

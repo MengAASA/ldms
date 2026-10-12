@@ -5,7 +5,7 @@
 // from production wipes the local copy - so this applies both directly to
 // the database dbconn.php points at.
 //
-// The two steps, in order:
+// The three steps, in order:
 //
 //   1. TRIGGER: trg_departments_hod_update is replaced so that assigning a
 //      HOD also clears the new HOD's own hodid. The 2026-09-04 version
@@ -20,6 +20,10 @@
 //      Staff who point at a DIFFERENT person than their department's HOD
 //      are reported but NOT changed: those can be deliberate exceptions
 //      set through the CSV import's HOD column.
+//
+//   3. HOD USER TYPE: every assigned department HOD whose usertype is blank
+//      gets usertype = 'HOD', which is what index.php routes to the HOD
+//      portal on. org.php > Assign HOD does this going forward.
 //
 // SAFETY
 //   - Dry run by default: reports what each step would change, writes
@@ -148,6 +152,60 @@ if (!empty($hodChanges)) {
         }
     } else {
         echo "Would apply " . count($hodChanges) . " updates (re-run with --apply).\n";
+    }
+}
+echo "\n";
+
+// ===== STEP 3: HOD user type =====
+// index.php sends a manager to the HOD portal only when usertype = 'HOD',
+// and until 2026-10-12 nothing in the application set it - so HODs assigned
+// through org.php never got the portal. Only a blank usertype is promoted;
+// HOD-type users who head nothing are deliberately left as they are.
+echo "--- Step 3: usertype = 'HOD' for assigned department HODs ---\n";
+$res = $conn->query(
+    "SELECT h.id, h.staffno, h.staffname, COALESCE(h.usertype, '') AS usertype, MIN(d.name) AS department
+     FROM departments d JOIN user h ON h.id = d.hod_user_id
+     WHERE COALESCE(h.usertype, '') <> 'HOD'
+     GROUP BY h.id, h.staffno, h.staffname, h.usertype"
+);
+$typeChanges = [];
+while ($row = $res->fetch_assoc()) {
+    if ($row['usertype'] === '') {
+        $typeChanges[] = $row;
+        echo "  {$row['staffno']}\t{$row['staffname']}\t{$row['department']}\n";
+    } else {
+        echo "  LEFT ALONE {$row['staffno']} {$row['staffname']}: user type is '{$row['usertype']}'\n";
+    }
+}
+echo "Rows that would change: " . count($typeChanges) . "\n";
+
+if (!empty($typeChanges)) {
+    if ($apply) {
+        $backupPath = __DIR__ . '/backup_hod_usertype_20261012_undo_map.tsv';
+        $fh = fopen($backupPath, 'w');
+        fwrite($fh, "id\tstaffno\tstaffname\told_usertype\tnew_usertype\n");
+        foreach ($typeChanges as $c) {
+            fwrite($fh, "{$c['id']}\t{$c['staffno']}\t{$c['staffname']}\t{$c['usertype']}\tHOD\n");
+        }
+        fclose($fh);
+        echo "Backup written: {$backupPath}\n";
+
+        $stmt = $conn->prepare("UPDATE user SET usertype = 'HOD' WHERE id = ? AND COALESCE(usertype, '') = ''");
+        $conn->begin_transaction();
+        try {
+            foreach ($typeChanges as $c) {
+                $id = (int) $c['id'];
+                $stmt->bind_param('i', $id);
+                if (!$stmt->execute()) throw new \Exception("id {$id}: {$conn->error}");
+            }
+            $conn->commit();
+            echo "Applied " . count($typeChanges) . " usertype updates.\n";
+        } catch (\Throwable $e) {
+            $conn->rollback();
+            echo "Step 3 ABORTED and rolled back: " . $e->getMessage() . "\n";
+        }
+    } else {
+        echo "Would apply " . count($typeChanges) . " updates (re-run with --apply).\n";
     }
 }
 echo "\n";
