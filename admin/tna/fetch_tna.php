@@ -1,6 +1,7 @@
 <?php
 include "../../dbconn.php";
 include_once __DIR__ . '/../../planning_year.php';
+include_once __DIR__ . '/tna_dashboard_data.php';
 // error_reporting(E_ALL);
 // ini_set('display_errors', 1);
 // print_r($_POST);
@@ -19,6 +20,10 @@ if (isset($_POST["action"]) && $_POST["action"] === "fetch_summary_tna") {
 
 if (isset($_POST["action"]) && $_POST["action"] === "fetch_method_tna") {
     echo json_encode(tnaMethodPieChart());
+}
+
+if (isset($_POST["action"]) && $_POST["action"] === "dashboard_tna") {
+    echo json_encode(tnaDashboardData($conn));
 }
 
 if ($_POST["action"] == "load_department") {
@@ -282,18 +287,25 @@ function allDepartment()
 function tnaStatus()
 {
     global $conn;
-    $sql = 'SELECT DISTINCT u.department, hod.staffname AS hod_name, MAX(t.status) AS tna_status FROM user u LEFT JOIN user hod ON u.hodid = hod.id LEFT JOIN ' . ldmsPlanningYearTable() . ' t ON u.id = t.userid WHERE hod.staffname IS NOT NULL AND UPPER(COALESCE(u.status, \'\')) <> \'RESIGN\' AND u.id NOT IN (SELECT hodid FROM user WHERE hodid IS NOT NULL) GROUP BY u.department, u.hodid, hod.staffname;';
+    // filled / staff: staff counted the same way as the dashboard (expected
+    // to fill a TNA, or did fill one). COMPLETED once all of them have filled.
+    $sql = 'SELECT DISTINCT u.department, hod.staffname AS hod_name,
+        COUNT(DISTINCT t.userid) AS filled,
+        COUNT(DISTINCT CASE WHEN (' . TNA_DASH_ELIGIBLE . ') OR t.userid IS NOT NULL THEN u.id END) AS staff
+        FROM user u LEFT JOIN user hod ON u.hodid = hod.id LEFT JOIN ' . ldmsPlanningYearTable() . ' t ON u.id = t.userid WHERE hod.staffname IS NOT NULL AND UPPER(COALESCE(u.status, \'\')) <> \'RESIGN\' AND u.id NOT IN (SELECT hodid FROM user WHERE hodid IS NOT NULL) GROUP BY u.department, u.hodid, hod.staffname;';
     $query = mysqli_query($conn, $sql);
     $output = [];
     $index = 1;
 
     if (mysqli_num_rows($query) > 0) {
         while ($row = mysqli_fetch_assoc($query)) {
-            $status = strtolower($row['tna_status']) === 'approve' ? '<span class="label label-pill label-success">COMPLETED</span>' : '<span class="label label-pill label-warning">PENDING</span>';
+            $status = tnaDashGroupComplete((int) $row['filled'], (int) $row['staff']) ? '<span class="label label-pill label-success">COMPLETED</span>' : '<span class="label label-pill label-warning">PENDING</span>';
             $output[] = array(
                 'id' => $index++,
                 'department' => $row['department'],
                 'hod' => $row['hod_name'],
+                'filled' => (int) $row['filled'],
+                'staff' => (int) $row['staff'],
                 'status' => $status
             );
         }
