@@ -20,6 +20,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 date_default_timezone_set('Asia/Kuala_Lumpur');
 $data = tnaDashboardData($conn);
 $year = $data['year'];
+$yearStr = (string) $year;
 
 // Writes a header row + rows starting at $startRow, styled as a bordered table.
 function tnaExportTable($sheet, array $headers, array $rows, $startRow = 1)
@@ -62,13 +63,15 @@ $sheet->setCellValue('A2', 'Generated ' . date('d/m/Y H:i'));
 $k = $data['kpi'];
 tnaExportTable($sheet, ['Measure', 'Value'], [
     ['Staff expected to fill TNA', $k['eligible']],
-    ['Staff TNA submitted', $k['submitted']],
+    ['  of which non-executives covered by grade TNA', $k['grade_staff']],
+    ['Staff TNA submitted (individual or by grade)', $k['submitted']],
     ['Completion (%)', $k['completion']],
     ['Approved', $k['approved']],
     ['Pending approval', $k['pending']],
     ['Not submitted', $k['not_submitted']],
     ['Approval rate of submitted (%)', $k['approval']],
-    ['Grade TNA (non-executive groups)', $k['grade_groups']],
+    ['Grade TNA filled (one per job grade)', $k['grade_groups']],
+    ['Non-executives covered by a filled grade TNA', $k['grade_filled']],
     ['Training needs identified', $k['items']],
     ['Average skill gap', $k['avg_gap']],
 ], 4);
@@ -77,35 +80,19 @@ tnaExportTable($sheet, ['Measure', 'Value'], [
 $rows = [];
 $i = 1;
 foreach ($data['departments'] as $d) {
-    $rows[] = [$i++, $d['department'], $d['eligible'], $d['submitted'], $d['completion'], $d['approved'], $d['pending'], $d['not_submitted'], $d['grade_groups'], $d['items']];
+    $rows[] = [$i++, $d['department'], $d['eligible'], $d['submitted'], $d['completion'], $d['approved'], $d['pending'], $d['not_submitted'], $d['grade_staff'], $d['grade_filled'], $d['grade_groups'], $d['items']];
 }
-$rows[] = ['', 'TOTAL', $k['eligible'], $k['submitted'], $k['completion'], $k['approved'], $k['pending'], $k['not_submitted'], $k['grade_groups'], $k['items']];
+$rows[] = ['', 'TOTAL', $k['eligible'], $k['submitted'], $k['completion'], $k['approved'], $k['pending'], $k['not_submitted'], $k['grade_staff'], $k['grade_filled'], $k['grade_groups'], $k['items']];
 $sheet = tnaExportSheet($spreadsheet, 'By Department');
-tnaExportTable($sheet, ['No.', 'Department', 'Staff', 'TNA Submitted', 'Completion (%)', 'Approved', 'Pending Approval', 'Not Submitted', 'Grade TNA', 'Training Needs'], $rows);
-$sheet->getStyle('A' . (count($rows) + 1) . ':J' . (count($rows) + 1))->getFont()->setBold(true);
+tnaExportTable($sheet, ['No.', 'Department', 'Staff', 'TNA Submitted', 'Completion (%)', 'Approved', 'Pending Approval', 'Not Submitted', 'Non-Exec by Grade', 'Non-Exec by Grade Filled', 'Grade TNA', 'Training Needs'], $rows);
+$sheet->getStyle('A' . (count($rows) + 1) . ':L' . (count($rows) + 1))->getFont()->setBold(true);
 
 // HOD status - same rule as the TNA Status table on the page.
-$stmt = $conn->prepare("
-    SELECT u.department, hod.staffname AS hod_name,
-        COUNT(DISTINCT t.userid) AS filled,
-        COUNT(DISTINCT CASE WHEN (" . TNA_DASH_ELIGIBLE . ") OR t.userid IS NOT NULL THEN u.id END) AS staff
-    FROM user u
-    LEFT JOIN user hod ON u.hodid = hod.id
-    LEFT JOIN tna t ON u.id = t.userid AND t.year = ?
-    WHERE hod.staffname IS NOT NULL
-        AND UPPER(COALESCE(u.status, '')) <> 'RESIGN'
-        AND u.id NOT IN (SELECT hodid FROM user WHERE hodid IS NOT NULL)
-    GROUP BY u.department, u.hodid, hod.staffname
-    ORDER BY u.department, hod.staffname");
-$yearStr = (string) $year;
-$stmt->bind_param('s', $yearStr);
-$stmt->execute();
 $rows = [];
 $i = 1;
-foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+foreach (tnaDashHodStatus($conn) as $r) {
     $rows[] = [$i++, $r['department'], $r['hod_name'], (int) $r['filled'], (int) $r['staff'], tnaDashGroupComplete((int) $r['filled'], (int) $r['staff']) ? 'COMPLETED' : 'PENDING'];
 }
-$stmt->close();
 $sheet = tnaExportSheet($spreadsheet, 'HOD Status');
 tnaExportTable($sheet, ['No.', 'Department', 'Head of Department', 'Filled', 'Staff', 'Status'], $rows);
 

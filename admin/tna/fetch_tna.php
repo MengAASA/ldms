@@ -268,18 +268,17 @@ function loadDepartment()
 function allDepartment()
 {
     global $conn;
-    $sql = "select u.department, count(t.id) as quantity from user u left join " . ldmsPlanningYearTable() . " t on u.id = t.userid where t.department is not null group by u.department order by u.department;";
-    $query = mysqli_query($conn, $sql);
+    // Individual TNAs plus grade TNAs (non-executives) per department.
     $output = [];
     $index = 1;  // Start a counter for row indexing
-    if (mysqli_num_rows($query) > 0) {
-        while ($row = mysqli_fetch_assoc($query)) {
-            $output[] = array(
-                'id' => $index++,  // Assign an incremental ID
-                'department' => $row['department'],
-                'quantity' => $row['quantity'],
-            );
-        }
+    foreach (tnaDashSubmissions($conn) as $row) {
+        $output[] = array(
+            'id' => $index++,  // Assign an incremental ID
+            'department' => $row['department'],
+            'individual' => (int) $row['individual'],
+            'by_grade' => (int) $row['by_grade'],
+            'quantity' => (int) $row['individual'] + (int) $row['by_grade'],
+        );
     }
     return $output;
 }
@@ -287,28 +286,21 @@ function allDepartment()
 function tnaStatus()
 {
     global $conn;
-    // filled / staff: staff counted the same way as the dashboard (expected
-    // to fill a TNA, or did fill one). COMPLETED once all of them have filled.
-    $sql = 'SELECT DISTINCT u.department, hod.staffname AS hod_name,
-        COUNT(DISTINCT t.userid) AS filled,
-        COUNT(DISTINCT CASE WHEN (' . TNA_DASH_ELIGIBLE . ') OR t.userid IS NOT NULL THEN u.id END) AS staff
-        FROM user u LEFT JOIN user hod ON u.hodid = hod.id LEFT JOIN ' . ldmsPlanningYearTable() . ' t ON u.id = t.userid WHERE hod.staffname IS NOT NULL AND UPPER(COALESCE(u.status, \'\')) <> \'RESIGN\' AND u.id NOT IN (SELECT hodid FROM user WHERE hodid IS NOT NULL) GROUP BY u.department, u.hodid, hod.staffname;';
-    $query = mysqli_query($conn, $sql);
+    // filled / staff: staff counted the same way as the dashboard, including
+    // non-executives covered by their grade's TNA. COMPLETED once all of
+    // them have filled.
     $output = [];
     $index = 1;
-
-    if (mysqli_num_rows($query) > 0) {
-        while ($row = mysqli_fetch_assoc($query)) {
-            $status = tnaDashGroupComplete((int) $row['filled'], (int) $row['staff']) ? '<span class="label label-pill label-success">COMPLETED</span>' : '<span class="label label-pill label-warning">PENDING</span>';
-            $output[] = array(
-                'id' => $index++,
-                'department' => $row['department'],
-                'hod' => $row['hod_name'],
-                'filled' => (int) $row['filled'],
-                'staff' => (int) $row['staff'],
-                'status' => $status
-            );
-        }
+    foreach (tnaDashHodStatus($conn) as $row) {
+        $status = tnaDashGroupComplete((int) $row['filled'], (int) $row['staff']) ? '<span class="label label-pill label-success">COMPLETED</span>' : '<span class="label label-pill label-warning">PENDING</span>';
+        $output[] = array(
+            'id' => $index++,
+            'department' => $row['department'],
+            'hod' => $row['hod_name'],
+            'filled' => (int) $row['filled'],
+            'staff' => (int) $row['staff'],
+            'status' => $status
+        );
     }
     return $output;
 }

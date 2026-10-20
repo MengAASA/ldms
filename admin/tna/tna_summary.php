@@ -241,7 +241,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                         <div class="kpi">
                             <div class="kpi-label"><i class="fas fa-users"></i> Staff</div>
                             <div class="kpi-value" id="kpi-eligible">&ndash;</div>
-                            <div class="kpi-sub">expected to fill TNA</div>
+                            <div class="kpi-sub" id="kpi-eligible-sub">expected to fill TNA</div>
                         </div>
                         <div class="kpi">
                             <div class="kpi-label"><i class="fas fa-file-signature"></i> TNA Submitted</div>
@@ -298,6 +298,8 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                                                 <tr>
                                                     <th>No.</th>
                                                     <th>Department</th>
+                                                    <th>Individual</th>
+                                                    <th>By Grade</th>
                                                     <th>Quantity</th>
                                                 </tr>
                                             </thead>
@@ -523,7 +525,9 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                     "searching": true,
                     "ordering": true,
                     "responsive": true,
-                    "pageLength": 10,
+                    // 14 rows fill the panel beside the TNA Status table.
+                    "lengthMenu": [14, 25, 50, 100],
+                    "pageLength": 14,
                     "info": true,
                     "data": parsedData, // Use parsed data
                     "columns": [
@@ -535,6 +539,12 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                         },
                         {
                             "data": "department"
+                        },
+                        {
+                            "data": "individual"
+                        },
+                        {
+                            "data": "by_grade"
                         },
                         {
                             "data": "quantity"
@@ -798,6 +808,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
             var k = data.kpi;
             $('#dashyear').text(data.year);
             $('#kpi-eligible').text(fmt(k.eligible));
+            $('#kpi-eligible-sub').text('expected to fill TNA, incl. ' + fmt(k.grade_staff) + ' non-exec by grade');
             $('#kpi-submitted').text(fmt(k.submitted));
             $('#kpi-completion').text(k.completion + '% completion');
             $('#kpi-approved').text(fmt(k.approved));
@@ -822,7 +833,8 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                         .appendTo(bar);
                 }
             });
-            $('#leg-grade').text(k.grade_groups > 0 ? '+ ' + fmt(k.grade_groups) + ' grade TNA (non-executive groups)' : '');
+            $('#leg-grade').text('Non-exec by grade: ' + fmt(k.grade_filled) + ' of ' + fmt(k.grade_staff)
+                + ' covered by ' + fmt(k.grade_groups) + ' grade TNA');
         }
 
         function renderDeptCompletion(departments) {
