@@ -82,7 +82,11 @@ if ($_POST["action"] == "load_staff") {
         $department = $row['department'];
     }
 
-    $sql = "select tablea.grade,id,status,headcount from (select distinct(grade) as grade,CONCAT(grade, '/', department) as id,status from tna where department = '$department' and year = '" . ldmsPlanningYear() . "')tablea join (select grade,count(*) as headcount from user where department = '$department' and grade != 0 and UPPER(COALESCE(status, '')) <> 'RESIGN' group by grade)tableb on tablea.grade = tableb.grade";
+    // Headcount = non-executives the grade TNA covers (usertype ''). Staff with
+    // a usertype (e.g. MAIN clerks) fill their own TNA and are already in the
+    // staff list, so they aren't counted again here. Left join so a grade TNA
+    // that was filled still shows (and can be approved) with headcount 0.
+    $sql = "select tablea.grade,id,status,coalesce(headcount,0) as headcount from (select distinct(grade) as grade,CONCAT(grade, '/', department) as id,status from tna where department = '$department' and year = '" . ldmsPlanningYear() . "' and userid is null and grade is not null)tablea left join (select grade,count(*) as headcount from user where department = '$department' and grade != 0 and designation = 'NON EXECUTIVE' and usertype = '' and UPPER(COALESCE(status, '')) <> 'RESIGN' group by grade)tableb on tablea.grade = tableb.grade";
     $query = mysqli_query($conn, $sql);
     while ($row = mysqli_fetch_assoc($query)) {
         if ($row['status'] == '' || $row['status'] == 1) {

@@ -93,16 +93,22 @@ if ($_POST["action"] == "load_department") {
     $department = $_POST['department'];
 
     $stmt = $conn->prepare("
-        SELECT tablea.grade, tablea.id, tablea.status, tableb.headcount
+        SELECT tablea.grade, tablea.id, tablea.status, COALESCE(tableb.headcount, 0) AS headcount
         FROM (
             SELECT DISTINCT(grade) AS grade, CONCAT(grade, '/', department) AS id, status
             FROM tna
             WHERE department = ? AND year = '" . ldmsPlanningYear() . "'
+            AND userid IS NULL AND grade IS NOT NULL
         ) tablea
-        JOIN (
+        LEFT JOIN (
+            -- Non-executives the grade TNA covers (usertype ''). Staff with a
+            -- usertype (e.g. MAIN clerks) fill their own TNA and are already
+            -- in the staff list, so they aren't counted again here. Left join
+            -- so a grade TNA that was filled still shows with headcount 0.
             SELECT grade, COUNT(*) AS headcount
             FROM user
             WHERE department = ? AND grade != 0
+            AND designation = 'NON EXECUTIVE' AND usertype = ''
             AND UPPER(COALESCE(status, '')) <> 'RESIGN'
             GROUP BY grade
         ) tableb ON tablea.grade = tableb.grade
