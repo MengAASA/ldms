@@ -16,9 +16,15 @@ function skillMatrixRatingLabel($rating)
     return isset($labels[(int) $rating]) ? $labels[(int) $rating] : $rating;
 }
 
+include_once __DIR__ . '/../../skill_matrix_department.php';
+
 function skillMatrixUserCanUse()
 {
     global $conn;
+
+    if (!skillMatrixDepartmentEnabled()) {
+        return false;
+    }
 
     if (isset($_SESSION['id']) && (!isset($_SESSION['designation']) || !isset($_SESSION['hodid']))) {
         $sessionUserId = (int) $_SESSION['id'];
@@ -44,6 +50,8 @@ function skillMatrixUserCanUse()
 
 if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || skillMatrixUserCanUse())) {
     $canUseSkillMatrix = skillMatrixUserCanUse();
+    include_once __DIR__ . '/../../skill_matrix_department.php';
+    $canUseSkillMatrix = $canUseSkillMatrix && skillMatrixDepartmentEnabled();
     $isClerkMatrixUser = $canUseSkillMatrix && $_SESSION['role'] == 'CLERK';
     $staffid = isset($_GET['staffid']) ? $_GET['staffid'] : '';
     $staff = null;

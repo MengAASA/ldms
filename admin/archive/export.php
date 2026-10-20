@@ -11,6 +11,8 @@ if (archiveUserCanAccess()) {
         && $_SESSION['role'] == 'CLERK'
         && $_SESSION['usertype'] == 'MAIN'
     );
+    include_once __DIR__ . '/../../skill_matrix_department.php';
+    $canViewSkillMatrix = $canViewSkillMatrix && skillMatrixDepartmentEnabled();
 
     ?>
     <!DOCTYPE html>

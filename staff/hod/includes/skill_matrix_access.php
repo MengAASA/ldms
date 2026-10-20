@@ -2,9 +2,15 @@
 // Shared gate for showing/using the SKILL MATRIX nav link and pages.
 // Requires $conn (see dbconn.php) to be available before calling canApproveSkillMatrix().
 if (!function_exists('canApproveSkillMatrix')) {
+    include_once __DIR__ . '/../../../skill_matrix_department.php';
+
     function canApproveSkillMatrix()
     {
         global $conn;
+
+        if (!skillMatrixDepartmentEnabled()) {
+            return false;
+        }
 
         if (isset($_SESSION['id']) && (!isset($_SESSION['designation']) || !isset($_SESSION['hodid']))) {
             $sessionUserId = (int) $_SESSION['id'];

@@ -355,6 +355,22 @@ if ($action == 'remove_sm_whitelist') {
     respond($stmt->execute() ? ['message' => 'delete'] : ['message' => 'error', 'detail' => $conn->error]);
 }
 
+if ($action == 'set_sm_department') {
+    $id = (int) ($_POST['id'] ?? 0);
+    $enabled = ($_POST['enabled'] ?? '') === '1' ? 1 : 0;
+    if (!$id) respond(['message' => 'error', 'detail' => 'Invalid input.']);
+    $stmt = $conn->prepare("UPDATE departments SET skill_matrix_enabled = ? WHERE id = ?");
+    $stmt->bind_param('ii', $enabled, $id);
+    respond($stmt->execute() ? ['message' => 'update'] : ['message' => 'error', 'detail' => $conn->error]);
+}
+
+if ($action == 'set_sm_department_all') {
+    $enabled = ($_POST['enabled'] ?? '') === '1' ? 1 : 0;
+    $stmt = $conn->prepare("UPDATE departments SET skill_matrix_enabled = ?");
+    $stmt->bind_param('i', $enabled);
+    respond($stmt->execute() ? ['message' => 'update', 'count' => $stmt->affected_rows] : ['message' => 'error', 'detail' => $conn->error]);
+}
+
 if ($action == 'delete_sm_data') {
     $user_id = (int) ($_POST['user_id'] ?? 0);
     if (!$user_id) respond(['message' => 'error', 'detail' => 'Invalid input.']);

@@ -3,9 +3,15 @@ session_start();
 include "../../../dbconn.php";
 include "../../../skill_matrix_period.php";
 
+include_once __DIR__ . '/../../../skill_matrix_department.php';
+
 function canApproveSkillMatrix()
 {
     global $conn;
+
+    if (!skillMatrixDepartmentEnabled()) {
+        return false;
+    }
 
     if (isset($_SESSION['id']) && (!isset($_SESSION['designation']) || !isset($_SESSION['hodid']))) {
         $sessionUserId = (int) $_SESSION['id'];

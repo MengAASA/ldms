@@ -22,6 +22,10 @@ $isRegularManager = isset($_SESSION['fullname'], $_SESSION['role'], $_SESSION['u
     && $_SESSION['usertype'] == ''
     && $_SESSION['designation'] == 'MANAGER (AM/HOS & ABOVE)'
     && (int) $_SESSION['hodid'] != 0;
+include_once __DIR__ . '/../../../skill_matrix_department.php';
+if (!skillMatrixDepartmentEnabled()) {
+    $isSmWhitelisted = $isRegularManager = false;
+}
 
 if (
     (!$isSmWhitelisted && !$isRegularManager) ||

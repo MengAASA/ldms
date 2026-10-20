@@ -25,6 +25,8 @@ $canUseSkillMatrix = (
         ($_SESSION['role'] == 'CLERK' && $_SESSION['usertype'] == 'MAIN')
     )
 );
+include_once __DIR__ . '/../../skill_matrix_department.php';
+$canUseSkillMatrix = $canUseSkillMatrix && skillMatrixDepartmentEnabled();
 $isClerkMatrixUser = $canUseSkillMatrix && $_SESSION['role'] == 'CLERK';
 
 if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkillMatrix)) {

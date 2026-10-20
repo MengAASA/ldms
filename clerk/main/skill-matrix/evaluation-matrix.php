@@ -23,6 +23,8 @@ $canViewSkillMatrix = !empty($_SESSION['is_sm_user']) || (
     && $_SESSION['role'] == 'CLERK'
     && $_SESSION['usertype'] == 'MAIN'
 );
+include_once __DIR__ . '/../../../skill_matrix_department.php';
+$canViewSkillMatrix = $canViewSkillMatrix && skillMatrixDepartmentEnabled();
 
 if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
     $staffid = isset($_GET['staffid']) ? $_GET['staffid'] : '';

@@ -230,6 +230,29 @@ if ($action == 'load_sm_whitelist') {
     respond($rows);
 }
 
+if ($action == 'load_sm_departments') {
+    // Which departments can use the skill matrix (skill_matrix_department.php).
+    $col = $conn->query("SHOW COLUMNS FROM departments LIKE 'skill_matrix_enabled'");
+    if (!$col || $col->num_rows == 0) {
+        respond(['ready' => false, 'departments' => []]);
+    }
+    $sql = "SELECT d.id, d.name, dv.name AS division, d.skill_matrix_enabled,
+                   COUNT(u.id) AS user_count
+            FROM departments d
+            LEFT JOIN divisions dv ON dv.id = d.division_id
+            LEFT JOIN user u ON u.department_id = d.id AND UPPER(COALESCE(u.status, '')) <> 'RESIGN'
+            GROUP BY d.id, d.name, dv.name, d.skill_matrix_enabled
+            ORDER BY d.name";
+    $result = $conn->query($sql);
+    $rows = [];
+    while ($row = $result->fetch_assoc()) {
+        $row['skill_matrix_enabled'] = (int) $row['skill_matrix_enabled'];
+        $row['user_count'] = (int) $row['user_count'];
+        $rows[] = $row;
+    }
+    respond(['ready' => true, 'departments' => $rows]);
+}
+
 if ($action == 'search_staff') {
     $q = isset($_POST['q']) ? trim($_POST['q']) : '';
     if ($q === '') respond([]);

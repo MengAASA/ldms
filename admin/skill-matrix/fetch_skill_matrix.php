@@ -14,9 +14,15 @@ function skillMatrixRespondJson($data)
     exit();
 }
 
+include_once __DIR__ . '/../../skill_matrix_department.php';
+
 function skillMatrixUserCanUse()
 {
     global $conn;
+
+    if (!skillMatrixDepartmentEnabled()) {
+        return false;
+    }
 
     if (isset($_SESSION['id']) && (!isset($_SESSION['designation']) || !isset($_SESSION['hodid']))) {
         $sessionUserId = (int) $_SESSION['id'];

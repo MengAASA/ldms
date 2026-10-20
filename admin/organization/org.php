@@ -40,6 +40,12 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
         .panel-title-text { display: inline-block; margin-top: 2px; font-weight: 700; }
         .panel-empty { padding: 20px; text-align: center; color: #aaa; font-size: 13px; }
         .panel-loading { padding: 20px; text-align: center; color: #aaa; font-size: 13px; }
+        .sm-dept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+        .sm-dept-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid #eee; margin: 0; font-weight: normal; cursor: pointer; }
+        .sm-dept-item:hover { background: #f0f4ff; }
+        .sm-dept-item input { margin: 0; width: 16px; height: 16px; flex: none; cursor: pointer; }
+        .sm-dept-item.off .org-item-name { color: #999; text-decoration: line-through; }
+        .sm-dept-state { margin-left: auto; flex: none; }
         #spinner-div {
             position: fixed; display: none; width: 100%; height: 100%;
             top: 0; left: 0; text-align: center;
@@ -190,6 +196,31 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
     <div class="panel panel-default" style="margin-bottom:20px;">
         <div class="panel-heading"><strong><i class="fa fa-user-check"></i> SKILL MATRIX CONFIG</strong></div>
         <div class="panel-body">
+            <!-- SKILL MATRIX DEPARTMENTS -->
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    <span class="panel-title-text"><i class="fa fa-building"></i> DEPARTMENTS ALLOWED TO USE SKILL MATRIX</span>
+                    <span class="text-muted" id="sm-dept-summary" style="margin-left:10px;font-size:12px;"></span>
+                    <div class="panel-heading-actions">
+                        <button class="btn btn-success btn-xs sm-dept-bulk" onclick="setAllSmDepartments(1)">
+                            <i class="fa fa-check-double"></i> ALL ON
+                        </button>
+                        <button class="btn btn-default btn-xs sm-dept-bulk" onclick="setAllSmDepartments(0)">
+                            <i class="fa fa-ban"></i> ALL OFF
+                        </button>
+                    </div>
+                </div>
+                <div style="padding:8px 10px;border-bottom:1px solid #eee;">
+                    <input type="text" id="sm-dept-search" class="form-control input-sm" placeholder="Search department or division...">
+                    <div class="text-muted" style="font-size:12px;margin-top:6px;">
+                        Switched-off departments lose the SKILL MATRIX menu and pages for everyone in them &mdash; managers, MAIN clerks, whitelisted staff and the HOD. Existing matrices are kept; switching back on restores access.
+                    </div>
+                </div>
+                <div class="org-panel-body" id="sm-dept-list" style="max-height:420px;">
+                    <div class="panel-loading"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
+                </div>
+            </div>
+
             <div class="row">
                 <!-- SKILL MATRIX WHITELIST -->
                 <div class="col-md-6">
@@ -1140,6 +1171,93 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
         });
     }
 
+    // ===== SKILL MATRIX CONFIG - DEPARTMENTS =====
+
+    function loadSmDepartments() {
+        $.post('fetch_org.php', { action: 'load_sm_departments' }, function (data) {
+            if (!data || !data.ready) {
+                $('#sm-dept-summary').text('');
+                $('.sm-dept-bulk').prop('disabled', true);
+                $('#sm-dept-list').html('<div class="panel-empty" style="color:#c00;"><i class="fa fa-exclamation-triangle"></i> Not set up yet: run scripts/deploy_skill_matrix_departments_20261020.php first. Until then every department can use the skill matrix.</div>');
+                return;
+            }
+            $('.sm-dept-bulk').prop('disabled', false);
+            var html = '<div class="sm-dept-grid">';
+            $.each(data.departments, function (i, d) {
+                var on = d.skill_matrix_enabled === 1;
+                html += '<label class="sm-dept-item' + (on ? '' : ' off') + '" data-search="' + escHtml((d.name + ' ' + (d.division || '')).toLowerCase()) + '">';
+                html += '<input type="checkbox" class="sm-dept-toggle" data-id="' + d.id + '" data-name="' + escHtml(d.name) + '"' + (on ? ' checked' : '') + '>';
+                html += '<div><div class="org-item-name">' + escHtml(d.name) + '</div>';
+                html += '<div class="org-item-meta">' + escHtml(d.division || '') + ' &middot; ' + d.user_count + ' staff</div></div>';
+                html += '<span class="sm-dept-state label ' + (on ? 'label-success' : 'label-default') + '">' + (on ? 'ON' : 'OFF') + '</span>';
+                html += '</label>';
+            });
+            html += '</div><div class="panel-empty" id="sm-dept-no-match" style="display:none;">No department matches your search.</div>';
+            $('#sm-dept-list').html(html);
+            updateSmDeptSummary();
+            filterSmDepartments();
+        }, 'json');
+    }
+
+    function updateSmDeptSummary() {
+        var total = $('.sm-dept-toggle').length;
+        var on = $('.sm-dept-toggle:checked').length;
+        $('#sm-dept-summary').text(on + ' of ' + total + ' departments on');
+    }
+
+    function filterSmDepartments() {
+        var q = $.trim($('#sm-dept-search').val()).toLowerCase();
+        var matched = 0;
+        $('.sm-dept-item').each(function () {
+            var show = q === '' || $(this).data('search').indexOf(q) !== -1;
+            $(this).toggle(show);
+            if (show) matched++;
+        });
+        $('#sm-dept-no-match').toggle(matched === 0 && $('.sm-dept-item').length > 0);
+    }
+
+    $(document).on('keyup', '#sm-dept-search', filterSmDepartments);
+
+    $(document).on('change', '.sm-dept-toggle', function () {
+        var box = $(this);
+        var on = box.is(':checked');
+        var item = box.closest('.sm-dept-item');
+        box.prop('disabled', true);
+        $.post('org_action.php', { btn_action: 'set_sm_department', id: box.data('id'), enabled: on ? '1' : '0' }, function (res) {
+            box.prop('disabled', false);
+            if (res.message === 'update') {
+                item.toggleClass('off', !on);
+                item.find('.sm-dept-state').text(on ? 'ON' : 'OFF').toggleClass('label-success', on).toggleClass('label-default', !on);
+                updateSmDeptSummary();
+            } else {
+                box.prop('checked', !on);
+                alertError(res.detail || 'Failed to update "' + box.data('name') + '".');
+            }
+        }, 'json').fail(function () {
+            box.prop('disabled', false).prop('checked', !on);
+            alertError('Failed to update "' + box.data('name') + '".');
+        });
+    });
+
+    function setAllSmDepartments(on) {
+        swal({
+            title: on ? 'Switch ALL departments on?' : 'Switch ALL departments off?',
+            text: on ? 'Every department will be able to use the skill matrix.' : 'Nobody outside admin will be able to use the skill matrix until departments are switched back on.',
+            icon: 'warning', buttons: ['Cancel', on ? 'All On' : 'All Off'], dangerMode: !on
+        }).then(function (ok) {
+            if (!ok) return;
+            showSpinner();
+            $.post('org_action.php', { btn_action: 'set_sm_department_all', enabled: on ? '1' : '0' }, function (res) {
+                hideSpinner();
+                if (res.message === 'update') {
+                    loadSmDepartments();
+                } else {
+                    alertError(res.detail || 'Failed to update departments.');
+                }
+            }, 'json');
+        });
+    }
+
     // ===== SKILL MATRIX CONFIG - WHITELIST =====
 
     function loadSmWhitelist() {
@@ -1417,6 +1535,7 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
 
     $(document).ready(function () {
         loadDivisions();
+        loadSmDepartments();
         loadSmWhitelist();
     });
 </script>

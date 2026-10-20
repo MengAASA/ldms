@@ -47,6 +47,8 @@ $canViewSkillMatrix = isset($_SESSION['designation'], $_SESSION['role'], $_SESSI
     && !empty($_SESSION['is_department_hod'])
     && $_SESSION['role'] == ''
     && $_SESSION['usertype'] == 'HOD';
+include_once __DIR__ . '/../../../skill_matrix_department.php';
+$canViewSkillMatrix = $canViewSkillMatrix && skillMatrixDepartmentEnabled();
 
 if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
     $hodId = (int) $_SESSION['id'];
