@@ -110,6 +110,48 @@ function tnaDashHodStatus($conn)
         ORDER BY u.department, hod.staffname");
 }
 
+// One department's staff expected to fill a TNA, with how they are covered
+// and their TNA state - the list behind clicking a department in TNA
+// Submission (by Department). Same people and rules as the counts above.
+// Not filled first, then waiting approval, then approved.
+function tnaDashDepartmentStaff($conn, $department)
+{
+    $year = (string) ldmsPlanningYear();
+    $stmt = $conn->prepare("
+        SELECT u.staffno, u.staffname, u.designation, COALESCE(s.name, u.section) AS section,
+            u.grade, x.by_grade, x.tna_status
+        FROM (" . tnaDashStaffSql() . ") x
+        JOIN user u ON u.id = x.id
+        LEFT JOIN sections s ON s.id = u.section_id
+        WHERE x.department = ?
+        ORDER BY CASE WHEN x.tna_status IS NULL THEN 0 WHEN x.tna_status = 'APPROVE' THEN 2 ELSE 1 END,
+            u.staffname");
+    $stmt->bind_param('sss', $year, $year, $department);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $output = [];
+    foreach ($rows as $r) {
+        if ($r['tna_status'] === null) {
+            $status = 'NOT FILLED';
+        } else if ($r['tna_status'] === 'APPROVE') {
+            $status = 'APPROVED';
+        } else {
+            $status = 'WAITING APPROVAL';
+        }
+        $output[] = [
+            'staffno' => $r['staffno'],
+            'staffname' => $r['staffname'],
+            'designation' => $r['designation'],
+            'section' => (string) $r['section'],
+            'covered_by' => $r['by_grade'] ? 'Grade ' . (int) $r['grade'] . ' TNA' : 'Own TNA',
+            'status' => $status,
+        ];
+    }
+    return $output;
+}
+
 // TNA Submission (by Department): TNAs filled per department - individual
 // TNAs (one per staff) and grade TNAs (one per job grade).
 function tnaDashSubmissions($conn)

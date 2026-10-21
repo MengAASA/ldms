@@ -459,6 +459,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
             </div>
 
         </div>
+
     </body>
     <footer>
         <div class="col-md-12" style="margin-bottom:15px;">
@@ -538,7 +539,16 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                             }
                         },
                         {
-                            "data": "department"
+                            "data": "department",
+                            // Click a department to open its staff list, filled and not filled.
+                            render: function (data, type) {
+                                if (type !== 'display') {
+                                    return data;
+                                }
+                                return $('<a title="Show staff"></a>')
+                                    .attr('href', 'tna_department.php?department=' + encodeURIComponent(data))
+                                    .text(data).prop('outerHTML');
+                            }
                         },
                         {
                             "data": "individual"
