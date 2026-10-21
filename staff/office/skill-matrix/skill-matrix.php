@@ -91,7 +91,7 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
                                     <strong>Department</strong>
                                 </div>
                                 <div class="col-md-4" align="right">
-                                    <a href="matrix-chart.php" class="btn btn-info btn-md">
+                                    <a href="matrix-chart.php" id="matrix_chart_btn" class="btn btn-info btn-md">
                                         <i class="fa fa-chart-bar"></i> Matrix Chart
                                     </a>
                                 </div>
@@ -254,14 +254,21 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
         });
 
 
+        // The Matrix Chart button opens the chart on the same quarter tab.
+        function syncMatrixChartLink() {
+            $('#matrix_chart_btn').attr('href', 'matrix-chart.php' + (skillMatrixPeriod == 'previous' ? '?period=previous' : ''));
+        }
+
         $('#period_tabs li').removeClass('active');
         $('#period_tabs a[data-period="' + skillMatrixPeriod + '"]').parent().addClass('active');
+        syncMatrixChartLink();
 
         $('#period_tabs a').click(function (e) {
             e.preventDefault();
             skillMatrixPeriod = $(this).data('period');
             $('#period_tabs li').removeClass('active');
             $(this).parent().addClass('active');
+            syncMatrixChartLink();
             skillMatrixTable.ajax.reload();
         });
 

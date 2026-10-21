@@ -60,6 +60,17 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
         'WAREHOUSE BB',
     ];
     list($currentYear, $currentQuarter) = skillMatrixFillPeriod();
+    // ?period=previous charts the quarter before the evaluation quarter
+    // instead, same tabs as skill-matrix.php.
+    $viewingPrevious = isset($_GET['period']) && $_GET['period'] == 'previous';
+    $fillYear = $currentYear;
+    $fillQuarter = $currentQuarter;
+    list($previousYear, $previousQuarter) = skillMatrixPreviousPeriod($fillYear, $fillQuarter);
+    if ($viewingPrevious) {
+        $currentYear = $previousYear;
+        $currentQuarter = $previousQuarter;
+    }
+    $periodQuery = $viewingPrevious ? 'period=previous' : '';
     $staffRows = array();
     $topicColumns = array();
     $departmentOptions = array();
@@ -604,10 +615,13 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                                         Include switched-off departments
                                     </label>
                                 </div>
+                                <?php if ($viewingPrevious) { ?>
+                                    <input type="hidden" name="period" value="previous">
+                                <?php } ?>
                                 <button type="submit" class="btn btn-info" style="margin-left:8px;">
                                     FILTER <i class="fa fa-search"></i>
                                 </button>
-                                <a href="matrix-chart.php?department=ALL&section=ALL&plant=ALL" class="btn btn-default">RESET</a>
+                                <a href="matrix-chart.php?department=ALL&section=ALL&plant=ALL<?php echo $viewingPrevious ? '&' . $periodQuery : ''; ?>" class="btn btn-default">RESET</a>
                             </form>
                         </div>
                     </div>
@@ -626,15 +640,25 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                                     <button type="button" class="btn download-report-btn btn-md" id="download_matrix_report">
                                         <i class="fa fa-download"></i> Download Report
                                     </button>
-                                    <a href="skill-matrix.php" class="btn btn-success btn-md">
+                                    <a href="skill-matrix.php<?php echo $viewingPrevious ? '?' . $periodQuery : ''; ?>" class="btn btn-success btn-md">
                                         <i class="far fa-arrow-alt-circle-left"></i> BACK TO SKILL MATRIX
                                     </a>
                                 </div>
                             </div>
                         </div>
                         <div class="panel-body">
+                            <?php
+                            // Tabs keep the current filters.
+                            $tabQuery = http_build_query(array('department' => $department, 'section' => $section, 'plant' => $plant)
+                                + ($includeOff ? array('include_off' => '1') : array()));
+                            ?>
+                            <ul class="nav nav-tabs" style="margin-bottom: 15px;">
+                                <li<?php echo $viewingPrevious ? '' : ' class="active"'; ?>><a href="matrix-chart.php?<?php echo htmlspecialchars($tabQuery); ?>">Evaluation Quarter (Q<?php echo $fillQuarter; ?> <?php echo $fillYear; ?>)</a></li>
+                                <li<?php echo $viewingPrevious ? ' class="active"' : ''; ?>><a href="matrix-chart.php?<?php echo htmlspecialchars($tabQuery); ?>&amp;period=previous">Previous Quarter (Q<?php echo $previousQuarter; ?> <?php echo $previousYear; ?>)</a></li>
+                            </ul>
                             <div class="alert alert-info">
-                                Evaluation Quarter: Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>
+                                <?php echo $viewingPrevious ? 'Previous Quarter' : 'Evaluation Quarter'; ?>: Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>
+                                (<?php echo skillMatrixQuarterMonths($currentQuarter); ?> <?php echo $currentYear; ?>)
                                 <?php if ($department != '' && $department != 'ALL') { ?>
                                     | Department: <?php echo htmlspecialchars($department); ?>
                                 <?php } ?>
@@ -832,7 +856,8 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
             window.location = "matrix-chart.php?export=excel&department=" + encodeURIComponent("<?php echo addslashes($department); ?>") +
                 "&section=" + encodeURIComponent("<?php echo addslashes($section); ?>") +
                 "&plant=" + encodeURIComponent("<?php echo addslashes($plant); ?>") +
-                "<?php echo $includeOff ? '&include_off=1' : ''; ?>";
+                "<?php echo $includeOff ? '&include_off=1' : ''; ?>" +
+                "<?php echo $viewingPrevious ? '&' . $periodQuery : ''; ?>";
         });
     </script>
 

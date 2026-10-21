@@ -45,6 +45,17 @@ $canViewSkillMatrix = $canViewSkillMatrix && skillMatrixDepartmentEnabled();
 if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
     $department = $_SESSION['department'];
     list($currentYear, $currentQuarter) = skillMatrixFillPeriod();
+    // ?period=previous charts the quarter before the evaluation quarter
+    // instead, same tabs as skill-matrix.php.
+    $viewingPrevious = isset($_GET['period']) && $_GET['period'] == 'previous';
+    $fillYear = $currentYear;
+    $fillQuarter = $currentQuarter;
+    list($previousYear, $previousQuarter) = skillMatrixPreviousPeriod($fillYear, $fillQuarter);
+    if ($viewingPrevious) {
+        $currentYear = $previousYear;
+        $currentQuarter = $previousQuarter;
+    }
+    $periodQuery = $viewingPrevious ? 'period=previous' : '';
     $staffRows = array();
     $topicColumns = array();
 
@@ -457,15 +468,20 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
                                     <button type="button" class="btn download-report-btn btn-md" id="download_matrix_report">
                                         <i class="fa fa-download"></i> Download Report
                                     </button>
-                                    <a href="skill-matrix.php" class="btn btn-success btn-md">
+                                    <a href="skill-matrix.php<?php echo $viewingPrevious ? '?' . $periodQuery : ''; ?>" class="btn btn-success btn-md">
                                         <i class="far fa-arrow-alt-circle-left"></i> BACK TO SKILL MATRIX
                                     </a>
                                 </div>
                             </div>
                         </div>
                         <div class="panel-body">
+                            <ul class="nav nav-tabs" style="margin-bottom: 15px;">
+                                <li<?php echo $viewingPrevious ? '' : ' class="active"'; ?>><a href="matrix-chart.php">Evaluation Quarter (Q<?php echo $fillQuarter; ?> <?php echo $fillYear; ?>)</a></li>
+                                <li<?php echo $viewingPrevious ? ' class="active"' : ''; ?>><a href="matrix-chart.php?period=previous">Previous Quarter (Q<?php echo $previousQuarter; ?> <?php echo $previousYear; ?>)</a></li>
+                            </ul>
                             <div class="alert alert-info">
-                                Evaluation Quarter: Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>
+                                <?php echo $viewingPrevious ? 'Previous Quarter' : 'Evaluation Quarter'; ?>: Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>
+                                (<?php echo skillMatrixQuarterMonths($currentQuarter); ?> <?php echo $currentYear; ?>)
                             </div>
 
                             <?php if (count($staffRows) == 0 || count($topicColumns) == 0) { ?>
@@ -633,7 +649,7 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
                 return;
             }
 
-            window.location = "matrix-chart.php?export=excel";
+            window.location = "matrix-chart.php?export=excel<?php echo $viewingPrevious ? '&' . $periodQuery : ''; ?>";
         });
     </script>
 

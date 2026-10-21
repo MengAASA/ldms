@@ -10,6 +10,12 @@
         $result = mysqli_query($conn, $sql);
     	if (mysqli_num_rows($result) == 1) {
     		$row = mysqli_fetch_assoc($result);
+            // A NULL role / user type means the same as blank. Store it as ''
+            // so access checks that start with isset($_SESSION['role'], ...)
+            // don't fail for these staff (a NULL roletype hid the skill matrix
+            // from HOD M0639).
+            $row['roletype'] = (string) $row['roletype'];
+            $row['usertype'] = (string) $row['usertype'];
             if ($row['roletype'] == 'ADMIN') {
                 $_SESSION['id'] = $row['id'];
                 $_SESSION['fullname'] = $row['staffname'];

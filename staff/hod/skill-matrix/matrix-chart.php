@@ -53,6 +53,17 @@ $canViewSkillMatrix = $canViewSkillMatrix && skillMatrixDepartmentEnabled();
 if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
     $hodId = (int) $_SESSION['id'];
     list($currentYear, $currentQuarter) = skillMatrixFillPeriod();
+    // ?period=previous charts the quarter before the evaluation quarter
+    // instead, same tabs as skill-matrix.php.
+    $viewingPrevious = isset($_GET['period']) && $_GET['period'] == 'previous';
+    $fillYear = $currentYear;
+    $fillQuarter = $currentQuarter;
+    list($previousYear, $previousQuarter) = skillMatrixPreviousPeriod($fillYear, $fillQuarter);
+    if ($viewingPrevious) {
+        $currentYear = $previousYear;
+        $currentQuarter = $previousQuarter;
+    }
+    $periodQuery = $viewingPrevious ? 'period=previous' : '';
     $staffRows = array();
     $topicColumns = array();
 
@@ -96,11 +107,7 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
     $stmt->execute();
     $result = $stmt->get_result();
 
-    $pendingEvaluationIds = array();
     while ($row = $result->fetch_assoc()) {
-        if ($row['approval_status'] == 'PENDING') {
-            $pendingEvaluationIds[] = (int) $row['evaluation_id'];
-        }
         $staffRows[$row['evaluation_id']] = array(
             'staffno' => $row['staffno'],
             'staffname' => $row['staffname'],
@@ -495,7 +502,7 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
                         <div class="panel-heading">
                             <div class="row" style="margin-bottom: 10px;">
                                 <div class="col-md-12">
-                                    <a href="skill-matrix.php" class="btn btn-success btn-md">
+                                    <a href="skill-matrix.php<?php echo $viewingPrevious ? '?' . $periodQuery : ''; ?>" class="btn btn-success btn-md">
                                         <i class="far fa-arrow-alt-circle-left"></i> BACK
                                     </a>
                                 </div>
@@ -505,9 +512,6 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
                                     <strong>Matrix Chart</strong>
                                 </div>
                                 <div class="col-md-4" align="right">
-                                    <button type="button" id="approve_all_btn" class="btn btn-warning btn-md" <?php echo count($pendingEvaluationIds) > 0 ? '' : 'disabled'; ?>>
-                                        <i class="fa fa-check-double"></i> Approve All Pending (<?php echo count($pendingEvaluationIds); ?>)
-                                    </button>
                                     <button type="button" class="btn download-report-btn btn-md" id="download_matrix_report">
                                         <i class="fa fa-download"></i> Download Report
                                     </button>
@@ -515,8 +519,13 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
                             </div>
                         </div>
                         <div class="panel-body">
+                            <ul class="nav nav-tabs" style="margin-bottom: 15px;">
+                                <li<?php echo $viewingPrevious ? '' : ' class="active"'; ?>><a href="matrix-chart.php">Evaluation Quarter (Q<?php echo $fillQuarter; ?> <?php echo $fillYear; ?>)</a></li>
+                                <li<?php echo $viewingPrevious ? ' class="active"' : ''; ?>><a href="matrix-chart.php?period=previous">Previous Quarter (Q<?php echo $previousQuarter; ?> <?php echo $previousYear; ?>)</a></li>
+                            </ul>
                             <div class="alert alert-info">
-                                Evaluation Quarter: Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>
+                                <?php echo $viewingPrevious ? 'Previous Quarter' : 'Evaluation Quarter'; ?>: Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>
+                                (<?php echo skillMatrixQuarterMonths($currentQuarter); ?> <?php echo $currentYear; ?>)
                             </div>
 
                             <?php if (count($staffRows) == 0 || count($topicColumns) == 0) { ?>
@@ -696,55 +705,6 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
             $('html, body').animate({ scrollTop: 0 }, 400);
         });
 
-        var pendingEvaluationIds = <?php echo json_encode($pendingEvaluationIds); ?>;
-
-        $('#approve_all_btn').on('click', function () {
-            if (pendingEvaluationIds.length === 0) {
-                return;
-            }
-
-            swal({
-                title: "Approve all " + pendingEvaluationIds.length + " pending skill matrix evaluation(s)?",
-                text: "This cannot be undone from here - every one shown as pending on this chart will be marked APPROVED.",
-                icon: "warning",
-                buttons: ["Cancel", "Approve All"],
-                dangerMode: true
-            }).then(function (willApprove) {
-                if (!willApprove) {
-                    return;
-                }
-
-                $('#approve_all_btn').prop('disabled', true);
-
-                $.ajax({
-                    url: "bulk_approve_skill_matrix.php",
-                    method: "POST",
-                    data: { evaluation_ids: pendingEvaluationIds },
-                    dataType: "json",
-                    success: function (response) {
-                        if (response.message === 'ok') {
-                            swal({
-                                title: "Approved!",
-                                text: response.approved + " skill matrix evaluation(s) approved.",
-                                icon: "success",
-                                timer: 2500,
-                                buttons: false
-                            }).then(function () {
-                                window.location.reload();
-                            });
-                        } else {
-                            swal("Failed", response.error || "Unable to approve the pending records.", "error");
-                            $('#approve_all_btn').prop('disabled', false);
-                        }
-                    },
-                    error: function () {
-                        swal("Failed", "The server could not process the request. Please refer to IT.", "error");
-                        $('#approve_all_btn').prop('disabled', false);
-                    }
-                });
-            });
-        });
-
         $('#download_matrix_report').click(function () {
             var table = document.getElementById('matrix_report_table');
             if (!table) {
@@ -752,7 +712,7 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
                 return;
             }
 
-            window.location = "matrix-chart.php?export=excel";
+            window.location = "matrix-chart.php?export=excel<?php echo $viewingPrevious ? '&' . $periodQuery : ''; ?>";
         });
     </script>
 

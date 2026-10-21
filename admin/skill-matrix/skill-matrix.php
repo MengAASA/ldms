@@ -688,6 +688,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
         }
 
         function disableMatrixChartButton() {
+            matrixChartFilter = null;
             $('#matrix_chart_btn')
                 .attr('href', '#')
                 .addClass('disabled')
@@ -697,12 +698,18 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 });
         }
 
+        // Last filter the chart button was enabled for, so switching the
+        // quarter tab can point it at the same filter on the other quarter.
+        var matrixChartFilter = null;
+
         function enableMatrixChartButton(department, section, plant) {
+            matrixChartFilter = [department, section, plant];
             $('#matrix_chart_btn')
                 .attr('href', 'matrix-chart.php?department=' + encodeURIComponent(department || 'ALL') +
                     '&section=' + encodeURIComponent(section || 'ALL') +
                     '&plant=' + encodeURIComponent(plant || 'ALL') +
-                    (includeOffDepartments() === '1' ? '&include_off=1' : ''))
+                    (includeOffDepartments() === '1' ? '&include_off=1' : '') +
+                    (skillMatrixPeriod == 'previous' ? '&period=previous' : ''))
                 .removeClass('disabled')
                 .css({
                     'pointer-events': 'auto',
@@ -759,6 +766,9 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             skillMatrixPeriod = $(this).data('period');
             $('#period_tabs li').removeClass('active');
             $(this).parent().addClass('active');
+            if (matrixChartFilter) {
+                enableMatrixChartButton.apply(null, matrixChartFilter);
+            }
             skillMatrixTable.ajax.reload();
         });
 

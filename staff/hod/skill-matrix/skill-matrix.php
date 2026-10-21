@@ -58,6 +58,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                                 sme.id,
                                 sme.evaluation_date,
                                 sme.approval_status,
+                                target.id AS target_id,
                                 target.staffno AS target_staffno,
                                 target.staffname AS target_staffname,
                                 target.department AS target_department,
@@ -90,12 +91,15 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
         $records[] = $row;
     }
 
-    // Department-wide overview (Total Staff / Completion Rate / Approved /
-    // Waiting Approval / Draft / Not Submitted) - a different population
-    // than $records above. $records only covers evaluations that were
-    // actually submitted (approval_status IS NOT NULL) by creators reporting
-    // to this HOD, so it has no way to know about staff with a draft or no
-    // evaluation at all this quarter. This mirrors the same status-derivation
+    // The page shows ONE list: every non-executive / contract staff in the
+    // department(s) this HOD heads with their status this quarter, plus any
+    // matrix in $records (submitted to this HOD for approval) whose staff is
+    // outside those departments - creators reporting to this HOD can fill in
+    // staff from other departments, and those still need this HOD's approval.
+    // The tiles (Total Staff / Completion Rate / Approved / Waiting Approval /
+    // Draft / Not Submitted) count the same list. $records alone only covers
+    // submitted evaluations, so it has no way to know about staff with a
+    // draft or no evaluation at all this quarter. This mirrors the same status-derivation
     // logic as admin/skill-matrix/fetch_skill_matrix.php's
     // load_non_executive_staff (APPROVED / PENDING / has-eval-but-no-status
     // = DRAFT / no-eval-at-all = NOT SUBMITTED), but scoped to the
@@ -112,20 +116,28 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
 
     $overview = array('total' => 0, 'approved' => 0, 'waiting' => 0, 'draft' => 0, 'not_submitted' => 0);
 
-    // One row per department staff with their status this quarter, listed
-    // under the overview tiles so the HOD can see who is behind each count.
+    // One row per staff (keyed by user id while it's built) with their status
+    // this quarter, listed under the tiles so the HOD can see who is behind
+    // each count.
     $staffStatus = array();
 
     // evaluation-matrix.php only opens evaluations in this HOD's approval
     // scope, so the staff list only links to those.
     $viewableIds = array();
+    // Of those, the ones still PENDING can be approved here in bulk -
+    // bulk_approve_skill_matrix.php applies the same scope rule.
+    $approvableIds = array();
     foreach ($records as $record) {
         $viewableIds[(int) $record['id']] = true;
+        if ($record['approval_status'] == 'PENDING') {
+            $approvableIds[(int) $record['id']] = true;
+        }
     }
 
     if (count($hodDepartments) > 0) {
         $placeholders = implode(',', array_fill(0, count($hodDepartments), '?'));
         $overviewSql = "SELECT
+                            u.id AS staff_id,
                             u.staffno,
                             u.staffname,
                             COALESCE(dp.name, u.department) AS department,
@@ -163,32 +175,61 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
         $overviewResult = $overviewStmt->get_result();
 
         while ($orow = $overviewResult->fetch_assoc()) {
-            $overview['total']++;
-            if ($orow['approval_status'] == 'APPROVED') {
-                $overview['approved']++;
-                $orow['status'] = 'APPROVED';
-            } else if ($orow['approval_status'] == 'PENDING') {
-                $overview['waiting']++;
-                $orow['status'] = 'WAITING APPROVAL';
-            } else if ($orow['evaluation_id'] !== null) {
-                $overview['draft']++;
-                $orow['status'] = 'DRAFT';
-            } else {
-                $overview['not_submitted']++;
-                $orow['status'] = 'NOT SUBMITTED';
-            }
-            $staffStatus[] = $orow;
+            $staffStatus[(int) $orow['staff_id']] = $orow;
         }
-
-        // Staff the HOD still has to chase come first.
-        $statusOrder = array('NOT SUBMITTED' => 0, 'DRAFT' => 1, 'WAITING APPROVAL' => 2, 'APPROVED' => 3);
-        usort($staffStatus, function ($a, $b) use ($statusOrder) {
-            if ($statusOrder[$a['status']] != $statusOrder[$b['status']]) {
-                return $statusOrder[$a['status']] - $statusOrder[$b['status']];
-            }
-            return strcasecmp($a['staffname'], $b['staffname']);
-        });
     }
+
+    // Submitted matrices for staff outside the HOD's departments join the
+    // list; for staff already on it, make sure VIEW opens the matrix that
+    // was submitted to this HOD.
+    foreach ($records as $record) {
+        $targetId = (int) $record['target_id'];
+        if (isset($staffStatus[$targetId])) {
+            if (!isset($viewableIds[(int) $staffStatus[$targetId]['evaluation_id']])) {
+                $staffStatus[$targetId]['evaluation_id'] = $record['id'];
+                $staffStatus[$targetId]['approval_status'] = $record['approval_status'];
+                $staffStatus[$targetId]['created_by_name'] = $record['created_by_name'];
+            }
+        } else {
+            $staffStatus[$targetId] = array(
+                'staff_id' => $targetId,
+                'staffno' => $record['target_staffno'],
+                'staffname' => $record['target_staffname'],
+                'department' => $record['target_department'],
+                'section' => $record['target_section'],
+                'evaluation_id' => $record['id'],
+                'approval_status' => $record['approval_status'],
+                'created_by_name' => $record['created_by_name'],
+            );
+        }
+    }
+
+    foreach ($staffStatus as $staffId => $orow) {
+        $overview['total']++;
+        if ($orow['approval_status'] == 'APPROVED') {
+            $overview['approved']++;
+            $staffStatus[$staffId]['status'] = 'APPROVED';
+        } else if ($orow['approval_status'] == 'PENDING') {
+            $overview['waiting']++;
+            $staffStatus[$staffId]['status'] = 'WAITING APPROVAL';
+        } else if ($orow['evaluation_id'] !== null) {
+            $overview['draft']++;
+            $staffStatus[$staffId]['status'] = 'DRAFT';
+        } else {
+            $overview['not_submitted']++;
+            $staffStatus[$staffId]['status'] = 'NOT SUBMITTED';
+        }
+    }
+
+    // What the HOD has to act on comes first (approve), then the staff they
+    // still have to chase.
+    $statusOrder = array('WAITING APPROVAL' => 0, 'NOT SUBMITTED' => 1, 'DRAFT' => 2, 'APPROVED' => 3);
+    usort($staffStatus, function ($a, $b) use ($statusOrder) {
+        if ($statusOrder[$a['status']] != $statusOrder[$b['status']]) {
+            return $statusOrder[$a['status']] - $statusOrder[$b['status']];
+        }
+        return strcasecmp($a['staffname'], $b['staffname']);
+    });
 
     $statusLabelClass = array(
         'APPROVED' => 'label-success',
@@ -302,70 +343,24 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
         <div class="panel panel-default">
             <div class="panel-heading">
                 <div class="row">
-                    <div class="col-md-8" style="margin-top: 10px;">
+                    <div class="col-md-4" style="margin-top: 10px;">
                         <strong>Skill Matrix - Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?></strong>
                     </div>
-                    <div class="col-md-4" align="right">
-                        <a href="matrix-chart.php" class="btn btn-info btn-md">
+                    <div class="col-md-8" align="right">
+                        <a href="matrix-chart.php<?php echo $viewingPrevious ? '?' . $periodQuery : ''; ?>" class="btn btn-info btn-md">
                             <i class="fa fa-chart-bar"></i> Matrix Chart
                         </a>
                         <a href="export_skill_matrix_list.php<?php echo $viewingPrevious ? '?' . $periodQuery : ''; ?>" class="btn btn-success btn-md">
                             <i class="fa fa-file-excel"></i> Export Excel
                         </a>
+                        <button type="button" id="approve_selected_btn" class="btn btn-primary btn-md" disabled>
+                            <i class="fa fa-check"></i> Approve Selected (<span id="approve_selected_count">0</span>)
+                        </button>
+                        <button type="button" id="approve_all_btn" class="btn btn-warning btn-md" <?php echo count($approvableIds) > 0 ? '' : 'disabled'; ?>>
+                            <i class="fa fa-check-double"></i> Approve All Pending (<?php echo count($approvableIds); ?>)
+                        </button>
                     </div>
                 </div>
-            </div>
-            <div class="panel-body">
-                <?php if (count($records) == 0) { ?>
-                    <div class="alert alert-info">No skill matrix records have been submitted for Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>.</div>
-                <?php } else { ?>
-                    <div class="table-responsive">
-                        <table id="skillMatrixTable" class="table table-bordered table-striped">
-                            <thead>
-                                <tr>
-                                    <th>No.</th>
-                                    <th>Staff No.</th>
-                                    <th>Staff Name</th>
-                                    <th>Department</th>
-                                    <th>Section</th>
-                                    <th>Filled By</th>
-                                    <th>Approval Status</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($records as $index => $record) { ?>
-                                    <tr>
-                                        <td class="text-center"><?php echo $index + 1; ?></td>
-                                        <td><?php echo htmlspecialchars($record['target_staffno']); ?></td>
-                                        <td><?php echo htmlspecialchars($record['target_staffname']); ?></td>
-                                        <td><?php echo htmlspecialchars($record['target_department']); ?></td>
-                                        <td><?php echo htmlspecialchars($record['target_section']); ?></td>
-                                        <td><?php echo htmlspecialchars($record['created_by_name']); ?></td>
-                                        <td class="text-center">
-                                            <?php if ($record['approval_status'] == 'APPROVED') { ?>
-                                                <span class="label label-success">APPROVED</span>
-                                            <?php } else { ?>
-                                                <span class="label label-warning">WAITING APPROVAL</span>
-                                            <?php } ?>
-                                        </td>
-                                        <td class="text-center">
-                                            <a href="evaluation-matrix.php?evaluation_id=<?php echo (int) $record['id']; ?><?php echo $viewingPrevious ? '&amp;' . $periodQuery : ''; ?>" class="btn btn-info btn-sm">
-                                                <i class="fa fa-search"></i> VIEW
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php } ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php } ?>
-            </div>
-        </div>
-
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <strong>Skill Matrix Overview - Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?></strong>
             </div>
             <div class="panel-body">
                 <div class="row">
@@ -408,13 +403,16 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                 </div>
 
                 <?php if (count($staffStatus) == 0) { ?>
-                    <div class="alert alert-info">No staff found in your department.</div>
+                    <div class="alert alert-info">No staff found in your department, and no skill matrix has been submitted to you for Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>.</div>
                 <?php } else { ?>
                     <p class="text-muted">Click a tile above to filter the list by status.</p>
                     <div class="table-responsive">
                         <table id="staffStatusTable" class="table table-bordered table-striped">
                             <thead>
                                 <tr>
+                                    <th class="text-center">
+                                        <input type="checkbox" id="approve_select_all" title="Select all waiting approval" <?php echo count($approvableIds) > 0 ? '' : 'disabled'; ?>>
+                                    </th>
                                     <th>No.</th>
                                     <th>Staff No.</th>
                                     <th>Staff Name</th>
@@ -428,6 +426,11 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                             <tbody>
                                 <?php foreach ($staffStatus as $index => $staff) { ?>
                                     <tr>
+                                        <td class="text-center">
+                                            <?php if ($staff['status'] == 'WAITING APPROVAL' && isset($approvableIds[(int) $staff['evaluation_id']])) { ?>
+                                                <input type="checkbox" class="approve-check" value="<?php echo (int) $staff['evaluation_id']; ?>" title="Select to approve">
+                                            <?php } ?>
+                                        </td>
                                         <td class="text-center"><?php echo $index + 1; ?></td>
                                         <td><?php echo htmlspecialchars($staff['staffno']); ?></td>
                                         <td><?php echo htmlspecialchars($staff['staffname']); ?></td>
@@ -474,20 +477,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
     }
 
     $(document).ready(function () {
-        $('#skillMatrixTable').DataTable({
-            "paging": true,
-            "lengthChange": true,
-            "searching": true,
-            "ordering": true,
-            "info": true,
-            "pageLength": 10,
-            "columnDefs": [
-                { className: 'text-center', targets: [0, 6, 7] },
-                { orderable: false, targets: [7] }
-            ]
-        });
-
-        // "order": [] keeps the server order (not submitted first).
+        // "order": [] keeps the server order (waiting approval first).
         var staffStatusTable = $('#staffStatusTable').DataTable({
             "paging": true,
             "lengthChange": true,
@@ -497,8 +487,9 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
             "pageLength": 10,
             "order": [],
             "columnDefs": [
-                { className: 'text-center', targets: [0, 6, 7] },
-                { orderable: false, targets: [7] }
+                { className: 'text-center', targets: [0, 1, 7, 8] },
+                { orderable: false, searchable: false, targets: [0] },
+                { orderable: false, targets: [8] }
             ]
         });
 
@@ -506,7 +497,101 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
             var status = $(this).data('status');
             $('.dash-tile[data-status]').removeClass('active');
             $(this).addClass('active');
-            staffStatusTable.column(6).search(status ? '^' + status + '$' : '', true, false).draw();
+            staffStatusTable.column(7).search(status ? '^' + status + '$' : '', true, false).draw();
+        });
+
+        // ===== Approve selected / all pending =====
+        // Ticks live on every page of the table, so they are read through the
+        // DataTables API rather than the visible DOM. Only rows matching the
+        // current search / tile filter count, so a hidden row is never
+        // approved by accident.
+        var approveAllIds = <?php echo json_encode(array_keys($approvableIds)); ?>;
+
+        function approveChecks(onlyTicked) {
+            var boxes = $(staffStatusTable.rows({ search: 'applied' }).nodes()).find('.approve-check');
+            return onlyTicked ? boxes.filter(':checked') : boxes;
+        }
+
+        function refreshApproveSelected() {
+            var all = approveChecks(false);
+            var ticked = approveChecks(true);
+            $('#approve_selected_count').text(ticked.length);
+            $('#approve_selected_btn').prop('disabled', ticked.length === 0);
+            $('#approve_select_all')
+                .prop('checked', all.length > 0 && ticked.length === all.length)
+                .prop('indeterminate', ticked.length > 0 && ticked.length < all.length);
+        }
+
+        $('#approve_select_all').on('change', function () {
+            approveChecks(false).prop('checked', this.checked);
+            refreshApproveSelected();
+        });
+
+        $('#staffStatusTable').on('change', '.approve-check', refreshApproveSelected);
+        staffStatusTable.on('draw', refreshApproveSelected);
+
+        function approveEvaluations(ids, title, text, confirmLabel, button) {
+            swal({
+                title: title,
+                text: text,
+                icon: "warning",
+                buttons: ["Cancel", confirmLabel],
+                dangerMode: true
+            }).then(function (willApprove) {
+                if (!willApprove) {
+                    return;
+                }
+
+                button.prop('disabled', true);
+
+                $.ajax({
+                    url: "bulk_approve_skill_matrix.php",
+                    method: "POST",
+                    data: { evaluation_ids: ids },
+                    dataType: "json",
+                    success: function (response) {
+                        if (response.message === 'ok') {
+                            swal({
+                                title: "Approved!",
+                                text: response.approved + " skill matrix evaluation(s) approved.",
+                                icon: "success",
+                                timer: 2500,
+                                buttons: false
+                            }).then(function () {
+                                window.location.reload();
+                            });
+                        } else {
+                            swal("Failed", response.error || "Unable to approve the selected records.", "error");
+                            button.prop('disabled', false);
+                        }
+                    },
+                    error: function () {
+                        swal("Failed", "The server could not process the request. Please refer to IT.", "error");
+                        button.prop('disabled', false);
+                    }
+                });
+            });
+        }
+
+        $('#approve_selected_btn').on('click', function () {
+            var ids = approveChecks(true).map(function () { return this.value; }).get();
+            if (ids.length === 0) {
+                return;
+            }
+            approveEvaluations(ids,
+                "Approve " + ids.length + " selected skill matrix evaluation(s)?",
+                "This cannot be undone from here - the ticked evaluations will be marked APPROVED.",
+                "Approve Selected", $(this));
+        });
+
+        $('#approve_all_btn').on('click', function () {
+            if (approveAllIds.length === 0) {
+                return;
+            }
+            approveEvaluations(approveAllIds,
+                "Approve all " + approveAllIds.length + " pending skill matrix evaluation(s)?",
+                "This cannot be undone from here - every evaluation waiting for your approval in Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?> will be marked APPROVED.",
+                "Approve All", $(this));
         });
     });
 </script>
