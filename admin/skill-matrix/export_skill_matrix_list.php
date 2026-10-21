@@ -121,6 +121,9 @@ $sql = "SELECT
         WHERE u.designation IN (?, ?)
         AND u.status != ?";
 
+// Same departments as the on-screen list (Organization > Skill Matrix Config).
+$sql .= skillMatrixEnabledDepartmentSql(skillMatrixIncludeOffDepartments());
+
 $designation1 = "NON EXECUTIVE";
 $designation2 = "CONTRACT";
 $inactiveStatus = "RESIGN";

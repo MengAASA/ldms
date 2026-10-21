@@ -57,6 +57,26 @@ if (!isset($_SESSION['fullname']) || !isset($_POST["action"]) || ($_SESSION['rol
     skillMatrixRespondJson(array());
 }
 
+if ($_POST["action"] == "load_departments") {
+    // Department filter <option>s, as {options: html}: only departments switched on in
+    // Organization > Skill Matrix Config, unless admin ticked "Include
+    // switched-off departments" (those are then marked OFF).
+    $includeOff = skillMatrixIncludeOffDepartments();
+    $ready = skillMatrixDepartmentsReady();
+    $sql = "SELECT dp.name" . ($ready ? ", dp.skill_matrix_enabled" : ", 1 AS skill_matrix_enabled") . "
+            FROM departments dp
+            WHERE 1 = 1" . skillMatrixEnabledDepartmentSql($includeOff) . "
+            ORDER BY dp.name";
+    $options = '<option value="" hidden>-- Select Department --</option><option value="ALL">All Department</option>';
+    $result = $conn->query($sql);
+    while ($row = $result->fetch_assoc()) {
+        $name = htmlspecialchars($row['name'], ENT_QUOTES);
+        $label = $name . ((int) $row['skill_matrix_enabled'] === 1 ? '' : ' (OFF)');
+        $options .= '<option value="' . $name . '">' . $label . '</option>';
+    }
+    skillMatrixRespondJson(array('options' => $options));
+}
+
 if ($_POST["action"] == "load_sections_by_department") {
     $department = isset($_POST["department"]) ? $_POST["department"] : "ALL";
 
@@ -167,6 +187,9 @@ if ($_POST["action"] == "load_non_executive_staff") {
             LEFT JOIN sections s ON u.section_id = s.id
             WHERE u.designation IN (?, ?)
             AND u.status != ?";
+
+    // Only departments switched on in Organization > Skill Matrix Config.
+    $sql .= skillMatrixEnabledDepartmentSql(skillMatrixIncludeOffDepartments());
 
     $designation1 = "NON EXECUTIVE";
     $designation2 = "CONTRACT";

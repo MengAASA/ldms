@@ -225,6 +225,15 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                                         class="btn btn-default btn-md">RESET</button>
                                 </div>
                             </div>
+                            <?php if ($_SESSION['role'] == 'ADMIN') { ?>
+                                <div class="checkbox" style="margin:10px 0 0;">
+                                    <label>
+                                        <input type="checkbox" id="include_off">
+                                        Include switched-off departments
+                                        <small class="text-muted">&mdash; only departments switched on in Organization &gt; Skill Matrix Config are shown otherwise</small>
+                                    </label>
+                                </div>
+                            <?php } ?>
                         </div>
                     </div>
                 </div>
@@ -400,6 +409,13 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             return i;
         }
 
+        // Admin's "Include switched-off departments" tick ('1'/'0'). Otherwise the
+        // list, dashboard, export and matrix chart only cover departments
+        // switched on in Organization > Skill Matrix Config.
+        function includeOffDepartments() {
+            return $('#include_off').is(':checked') ? '1' : '0';
+        }
+
         // Which tab the staff table is showing: the evaluation quarter or the one before it.
         var skillMatrixPeriod = /[?&]period=previous(&|$)/.test(window.location.search) ? 'previous' : 'current';
 
@@ -422,6 +438,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                     data.department = $('#department').val() || "ALL";
                     data.section = $('#section').val() || "ALL";
                     data.plant = $('#plant').val() || "ALL";
+                    data.include_off = includeOffDepartments();
                 }
             },
             "columns": [
@@ -628,14 +645,25 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             renderDashboard(json);
         });
 
-        $(function () {
-            $.post("../tna/fetch_tna.php", {
-                action: "load_department"
+        function loadDepartments() {
+            $.post("fetch_skill_matrix.php", {
+                action: "load_departments",
+                include_off: includeOffDepartments()
             }, function (data) {
-                $('#department').html(data);
+                $('#department').html(data.options || '');
                 disableMatrixChartButton();
-            });
+            }, 'json');
+        }
+
+        $(function () {
+            loadDepartments();
             resetSectionFilter();
+        });
+
+        $('#include_off').change(function () {
+            loadDepartments();
+            resetSectionFilter();
+            skillMatrixTable.ajax.reload();
         });
 
         function resetSectionFilter() {
@@ -673,7 +701,8 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             $('#matrix_chart_btn')
                 .attr('href', 'matrix-chart.php?department=' + encodeURIComponent(department || 'ALL') +
                     '&section=' + encodeURIComponent(section || 'ALL') +
-                    '&plant=' + encodeURIComponent(plant || 'ALL'))
+                    '&plant=' + encodeURIComponent(plant || 'ALL') +
+                    (includeOffDepartments() === '1' ? '&include_off=1' : ''))
                 .removeClass('disabled')
                 .css({
                     'pointer-events': 'auto',
@@ -707,7 +736,8 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             var params = new URLSearchParams({
                 department: $('#department').val() || 'ALL',
                 section: $('#section').val() || 'ALL',
-                plant: $('#plant').val() || 'ALL'
+                plant: $('#plant').val() || 'ALL',
+                include_off: includeOffDepartments()
             });
             window.location.href = 'export_skill_matrix_list.php?' + params.toString();
         });

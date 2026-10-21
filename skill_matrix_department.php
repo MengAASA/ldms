@@ -57,3 +57,49 @@ if (!function_exists('skillMatrixDepartmentEnabled')) {
         return $enabled;
     }
 }
+
+// True once the deploy script has added departments.skill_matrix_enabled.
+if (!function_exists('skillMatrixDepartmentsReady')) {
+    function skillMatrixDepartmentsReady()
+    {
+        global $conn;
+        static $ready = null;
+
+        if ($ready === null) {
+            if (!($conn instanceof mysqli)) {
+                include __DIR__ . '/dbconn.php';
+            }
+            try {
+                $col = $conn->query("SHOW COLUMNS FROM departments LIKE 'skill_matrix_enabled'");
+                $ready = $col && $col->num_rows > 0;
+            } catch (Throwable $e) {
+                $ready = false;
+            }
+        }
+        return $ready;
+    }
+}
+
+// Condition for the admin skill matrix list, its dashboard, export and matrix
+// chart, so they only cover departments that are switched on. Append it to a
+// WHERE clause in a query that joins departments AS dp. Empty when
+// $includeOff (admin ticked "Include switched-off departments") or before
+// the deploy script has run.
+if (!function_exists('skillMatrixEnabledDepartmentSql')) {
+    function skillMatrixEnabledDepartmentSql($includeOff = false)
+    {
+        return (!$includeOff && skillMatrixDepartmentsReady())
+            ? " AND COALESCE(dp.skill_matrix_enabled, 1) = 1 "
+            : "";
+    }
+}
+
+// Admin's "Include switched-off departments" tick, from the request.
+// Only admin can see switched-off departments.
+if (!function_exists('skillMatrixIncludeOffDepartments')) {
+    function skillMatrixIncludeOffDepartments()
+    {
+        return isset($_SESSION['role']) && $_SESSION['role'] == 'ADMIN'
+            && isset($_REQUEST['include_off']) && $_REQUEST['include_off'] === '1';
+    }
+}

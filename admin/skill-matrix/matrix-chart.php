@@ -2,6 +2,7 @@
 session_start();
 include "../../dbconn.php";
 include "../../skill_matrix_period.php";
+include_once __DIR__ . '/../../skill_matrix_department.php';
 
 function matrixPieLevel($score)
 {
@@ -64,7 +65,10 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
     $departmentOptions = array();
     $sectionOptions = array();
 
-    $departmentResult = mysqli_query($conn, "SELECT name FROM departments ORDER BY name");
+    // Only departments switched on in Organization > Skill Matrix Config,
+    // unless "Include switched-off departments" is ticked.
+    $includeOff = skillMatrixIncludeOffDepartments();
+    $departmentResult = mysqli_query($conn, "SELECT dp.name FROM departments dp WHERE 1 = 1 " . skillMatrixEnabledDepartmentSql($includeOff) . " ORDER BY dp.name");
     while ($departmentRow = mysqli_fetch_assoc($departmentResult)) {
         $departmentOptions[] = $departmentRow['name'];
     }
@@ -114,7 +118,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                             WHERE sme.eval_year = ?
                             AND sme.eval_quarter = ?
                             AND sme.approval_status IN ('APPROVED', 'PENDING')
-                            ";
+                            " . skillMatrixEnabledDepartmentSql($includeOff);
 
     $staffTypes = "ii";
     $staffParams = [$currentYear, $currentQuarter];
@@ -593,6 +597,13 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
                                         <?php } ?>
                                     </select>
                                 </div>
+                                <div class="checkbox" style="margin-left:12px;">
+                                    <label title="Departments switched off in Organization > Skill Matrix Config">
+                                        <input type="checkbox" name="include_off" value="1" <?php echo $includeOff ? 'checked' : ''; ?>
+                                            onchange="if (!this.checked) { this.form.department.value = 'ALL'; } this.form.submit();">
+                                        Include switched-off departments
+                                    </label>
+                                </div>
                                 <button type="submit" class="btn btn-info" style="margin-left:8px;">
                                     FILTER <i class="fa fa-search"></i>
                                 </button>
@@ -820,7 +831,8 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN')) {
 
             window.location = "matrix-chart.php?export=excel&department=" + encodeURIComponent("<?php echo addslashes($department); ?>") +
                 "&section=" + encodeURIComponent("<?php echo addslashes($section); ?>") +
-                "&plant=" + encodeURIComponent("<?php echo addslashes($plant); ?>");
+                "&plant=" + encodeURIComponent("<?php echo addslashes($plant); ?>") +
+                "<?php echo $includeOff ? '&include_off=1' : ''; ?>";
         });
     </script>
 
