@@ -5,7 +5,7 @@
     if($_POST["action"] == "load_tni"){
         $output= array();
         
-        $sql = "select id,staffname,tnia.* from user join (select department,count(*) as tnicount from " . ldmsPlanningYearTable('tni') . " tni group by department)tnia on user.department = tnia.department where usertype = 'HOD';";
+        $sql = "select id,staffname,tnia.* from user join (select department,count(*) as tnicount from " . ldmsPlanningYearTable('tni') . " tni group by department)tnia on user.department = tnia.department where usertype = 'HOD' and UPPER(COALESCE(user.status, '')) <> 'RESIGN';";
         $query = mysqli_query($conn,$sql);
         while($row = mysqli_fetch_assoc($query))
         {

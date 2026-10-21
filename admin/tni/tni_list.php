@@ -69,8 +69,13 @@
 					<div class="panel panel-default">
                         <div class="panel-heading">
                             <div class="row">
-                                <div class="col-md-12" style="margin-top: 10px;">
+                                <div class="col-md-8" style="margin-top: 10px;">
                                     <strong>TNI List</strong>
+                                </div>
+                                <div class="col-md-4" align="right">
+                                    <a href="export_tni.php" class="btn btn-success btn-md">
+                                        <i class="fas fa-file-excel"></i> Export Excel
+                                    </a>
                                 </div>
                             </div>
                         </div>
