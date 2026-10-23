@@ -6,6 +6,53 @@ if (isset($_SESSION['fullname']) && ($_SESSION['usertype'] == 'HOD')) {
     include_once "../../../dbconn.php";
     include_once __DIR__ . "/../includes/skill_matrix_access.php";
     $showSkillMatrixNav = canApproveSkillMatrix();
+    include_once __DIR__ . "/../../../admin/tna/tna_dashboard_data.php";
+
+    // The HOD's own department: the one they head on the Organization page,
+    // else the department on their own record.
+    $hodId = (int) $_SESSION['id'];
+    $stmt = $conn->prepare("SELECT COALESCE(
+            (SELECT name FROM departments WHERE hod_user_id = ? ORDER BY id LIMIT 1),
+            (SELECT department FROM user WHERE id = ?)) AS department");
+    $stmt->bind_param('ii', $hodId, $hodId);
+    $stmt->execute();
+    $department = (string) $stmt->get_result()->fetch_assoc()['department'];
+    $stmt->close();
+    $year = ldmsPlanningYear();
+
+    // Same people and rules as the admin department page, less the HOD
+    // themself (their own TNA is under MY TNA).
+    $staff = [];
+    if ($department !== '') {
+        foreach (tnaDashDepartmentStaff($conn, $department) as $s) {
+            if ($s['id'] !== $hodId) {
+                $staff[] = $s;
+            }
+        }
+    }
+    $split = tnaDashSplitByCoverage($staff);
+
+    // A grade TNA filled for a grade nobody is covered by any more still
+    // needs a row, so the HOD can open and approve it.
+    if ($department !== '') {
+        $yearStr = (string) $year;
+        $stmt = $conn->prepare("SELECT grade, MAX(status) AS status FROM tna
+            WHERE department = ? AND year = ? AND userid IS NULL AND grade IS NOT NULL
+            GROUP BY grade");
+        $stmt->bind_param('ss', $department, $yearStr);
+        $stmt->execute();
+        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+            $grade = (int) $r['grade'];
+            if (isset($split['gradeStatus'][$grade])) {
+                continue;
+            }
+            $status = $r['status'] === 'APPROVE' ? 'APPROVED' : 'WAITING APPROVAL';
+            $split['gradeStatus'][$grade] = $status;
+            $split['gradeRows'][] = ['grade' => $grade, 'label' => 'Grade ' . $grade, 'section' => '', 'staff' => 0, 'done' => 0, 'status' => $status];
+        }
+        $stmt->close();
+        usort($split['gradeRows'], 'tnaDashCompareGradeRows');
+    }
 
     ?>
     <!DOCTYPE html>
@@ -26,11 +73,6 @@ if (isset($_SESSION['fullname']) && ($_SESSION['usertype'] == 'HOD')) {
             href="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.18/b-1.5.4/b-colvis-1.5.4/b-flash-1.5.4/b-html5-1.5.4/b-print-1.5.4/datatables.min.css" />
         <script type="text/javascript"
             src="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.18/b-1.5.4/b-colvis-1.5.4/b-flash-1.5.4/b-html5-1.5.4/b-print-1.5.4/datatables.min.js"></script>
-        <style>
-            #userlist, #gradelist {
-                width: 100% !important;
-            }
-        </style>
     </head>
 
     <body onload="startTime()" style="background-image:url('../../../asset/image/bg-try.png');zoom: 75%;">
@@ -74,69 +116,20 @@ if (isset($_SESSION['fullname']) && ($_SESSION['usertype'] == 'HOD')) {
                     <div class="panel panel-default">
                         <div class="panel-heading">
                             <div class="row">
-                                <div class="col-md-11" style="margin-top: 10px;">
-                                    <strong>Staff List (by Individual)</strong>
+                                <div class="col-md-10" style="margin-top: 10px;">
+                                    <strong><?php echo htmlspecialchars($department !== '' ? $department : 'No department'); ?> &ndash; TNA FY <?php echo $year; ?></strong>
                                 </div>
-                                <div class="col-md-1" align="right">
+                                <div class="col-md-2" align="right">
                                     <button type="button" name="add_tna" id="add_tna" class="btn btn-success btn-md">MY TNA
                                         <i class="far fa-arrow-alt-circle-right"></i> </button>
                                 </div>
                             </div>
                         </div>
-                        <div class="panel-body" align="center">
-                            <div class="row">
-                                <div class="col-sm-12 table-responsive">
-                                    <table id="userlist" class="table table-bordered table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>No.</th>
-                                                <th>Staff No.</th>
-                                                <th>Staff Name</th>
-                                                <th>Section</th>
-                                                <th>Status</th>
-                                                <th width="65px">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <br>
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="panel panel-default">
-                        <div class="panel-heading">
-                            <div class="row">
-                                <div class="col-md-11" style="margin-top: 10px;">
-                                    <strong>Staff List (by Grade)</strong>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="panel-body" align="center">
-                            <div class="row">
-                                <div class="col-sm-12 table-responsive">
-                                    <table id="gradelist" class="table table-bordered table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>No.</th>
-                                                <th>Job Grade</th>
-                                                <th>Head Count</th>
-                                                <th>Status</th>
-                                                <th width="65px">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                        <div class="panel-body">
+                            <?php
+                            $viewButtons = true;
+                            include __DIR__ . '/../../../admin/tna/tna_department_view.php';
+                            ?>
                         </div>
                     </div>
                 </div>
@@ -187,99 +180,6 @@ if (isset($_SESSION['fullname']) && ($_SESSION['usertype'] == 'HOD')) {
             localStorage.setItem("setid", userid);
             window.location = "manage_tna.php";
         });
-
-        function fetch_data(action) {
-            var userdataTable = $('#userlist').DataTable({
-                "paging": true,
-                "lengthChange": true,
-                "searching": true,
-                "ordering": true,
-                "responsive": true,
-                "autoWidth": false,
-                "pageLength": 10,
-                "info": true,
-                "ajax": {
-                    url: "fetch_staff.php",
-                    type: "POST",
-                    dataSrc: '',
-                    data: { action: action, userid: userid },
-                },
-                "columns": [
-                    {
-                        "data": "id",
-                        render: function (data, type, row, meta) {
-                            return meta.row + meta.settings._iDisplayStart + 1;
-                        }
-                    },
-                    {
-                        "data": "staffno"
-                    },
-                    {
-                        "data": "staffname"
-                    },
-                    {
-                        "data": "section"
-                    },
-                    {
-                        "data": "status"
-                    },
-                    {
-                        "data": "btnedit"
-                    }
-                ],
-                "columnDefs": [
-                    { className: 'text-center', targets: [0, 4, 5] }
-                ]
-            });
-        }
-
-        fetch_data('load_staff');
-
-        function fetch_data1(action) {
-            var gradedataTable = $('#gradelist').DataTable({
-                "paging": true,
-                "lengthChange": true,
-                "searching": true,
-                "ordering": true,
-                "responsive": true,
-                "autoWidth": false,
-                "pageLength": 10,
-                "info": true,
-                "ajax": {
-                    url: "fetch_staff.php",
-                    type: "POST",
-                    dataSrc: '',
-                    data: { action: action, userid: userid },
-                },
-                "columns": [
-                    {
-                        "data": "id",
-                        render: function (data, type, row, meta) {
-                            return meta.row + meta.settings._iDisplayStart + 1;
-                        }
-                    },
-                    {
-                        "data": "grade"
-                    },
-                    {
-                        "data": "headcount"
-                    },
-                    {
-                        "data": "status"
-                    },
-                    {
-                        "data": "btnedit"
-                    }
-                ],
-                "columnDefs": [
-                    { className: 'text-center', targets: [0, 1, 2, 3, 4] },
-                    { type: 'num', targets: 1 } // ensure grade column is treated as numeric
-                ],
-                "order": [[1, 'asc']] // sort by grade ascending (1 → 5)
-            });
-        }
-
-        fetch_data1('load_grade');
 
         $(document).on('click', '.view', function () {
             console.log("view tna");

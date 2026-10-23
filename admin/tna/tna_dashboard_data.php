@@ -34,6 +34,11 @@ const TNA_DASH_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
 // staff the TNA list leaves out of its individual list (usertype '').
 const TNA_DASH_BY_GRADE = "u.designation = 'NON EXECUTIVE' AND u.usertype = ''";
 
+// Grades a grade TNA can be filled for. A non-executive covered by grade but
+// without one of these (grade NULL or 0) still counts as staff - nothing
+// covers them, so they stay not filled until HR gives them a grade.
+const TNA_DASH_GRADED = "u.grade BETWEEN 1 AND 5";
+
 // Staff who are expected to fill a TNA: individually - the same people the
 // TNA list shows per department (load_staff in fetch_tna.php) - or through
 // their grade's TNA.
@@ -42,7 +47,7 @@ const TNA_DASH_ELIGIBLE = "u.department IS NOT NULL AND u.department <> ''
     AND UPPER(COALESCE(u.status, '')) <> 'RESIGN'
     AND (u.designation IN ('MANAGER (AM/HOS & ABOVE)', 'EXECUTIVE')
         OR (u.designation = 'NON EXECUTIVE' AND (u.usertype IS NULL OR u.usertype != ''))
-        OR (" . TNA_DASH_BY_GRADE . " AND u.grade BETWEEN 1 AND 5))";
+        OR (" . TNA_DASH_BY_GRADE . "))";
 
 // "OTHERS" in the training dropdown means the title was typed into othertr.
 const TNA_DASH_TITLE = "CASE WHEN t.training = 'OTHERS' AND COALESCE(t.othertr, '') <> '' THEN t.othertr ELSE t.training END";
@@ -67,14 +72,15 @@ function tnaDashRows($conn, $sql)
 // too, e.g. a HOD, so completion never goes over 100%), with their TNA state
 // for the year in tna_status: NULL = not filled, '1'/'' = waiting approval,
 // 'APPROVE' = approved. A non-executive covered by grade takes the state of
-// their grade's TNA in their department, unless they filled their own.
-// by_grade is 1 for those staff. Takes the planning year twice ("?").
+// their grade's TNA in their department, unless they filled their own; with
+// no grade (NULL or 0) nothing covers them. by_grade is 1 for those staff.
+// Takes the planning year twice ("?").
 function tnaDashStaffSql()
 {
     return "
         SELECT u.id, u.department, u.hodid,
             (s.userid IS NULL AND " . TNA_DASH_BY_GRADE . ") AS by_grade,
-            COALESCE(s.status, CASE WHEN " . TNA_DASH_BY_GRADE . " THEN g.status END) AS tna_status
+            COALESCE(s.status, CASE WHEN " . TNA_DASH_BY_GRADE . " AND " . TNA_DASH_GRADED . " THEN g.status END) AS tna_status
         FROM user u
         LEFT JOIN (
             SELECT userid, MAX(status) AS status
@@ -118,7 +124,7 @@ function tnaDashDepartmentStaff($conn, $department)
 {
     $year = (string) ldmsPlanningYear();
     $stmt = $conn->prepare("
-        SELECT u.staffno, u.staffname, u.designation, COALESCE(s.name, u.section) AS section,
+        SELECT u.id, u.staffno, u.staffname, u.designation, COALESCE(s.name, u.section) AS section,
             u.grade, x.by_grade, x.tna_status
         FROM (" . tnaDashStaffSql() . ") x
         JOIN user u ON u.id = x.id
@@ -140,16 +146,68 @@ function tnaDashDepartmentStaff($conn, $department)
         } else {
             $status = 'WAITING APPROVAL';
         }
+        // 0 = no grade a grade TNA can cover (NULL or 0 on the user).
+        $grade = (int) $r['grade'] >= 1 && (int) $r['grade'] <= 5 ? (int) $r['grade'] : 0;
         $output[] = [
+            'id' => (int) $r['id'],
             'staffno' => $r['staffno'],
             'staffname' => $r['staffname'],
             'designation' => $r['designation'],
             'section' => (string) $r['section'],
-            'covered_by' => $r['by_grade'] ? 'Grade ' . (int) $r['grade'] . ' TNA' : 'Own TNA',
+            'by_grade' => (bool) $r['by_grade'],
+            'grade' => $grade,
+            'covered_by' => $r['by_grade'] ? ($grade ? 'Grade ' . $grade : 'No grade') : 'Own TNA',
             'status' => $status,
         ];
     }
     return $output;
+}
+
+// Splits tnaDashDepartmentStaff() rows the way the department pages show
+// them: staff filling their own TNA (one row each, order kept), and grade
+// TNAs as one row per grade and section, by grade then section - everyone in
+// a grade shares that grade's TNA, so they share its status too. Staff with
+// no grade (grade 0) get "No grade" rows, listed last and always not filled.
+//   own         staff rows filling their own TNA
+//   ownFilled   how many of them have filled
+//   gradeRows   [grade, label, section, staff, done, status]
+//   gradeStatus grade => status, one entry per real grade (1-5)
+//   gradeStaff  non-executives covered by a grade TNA, no grade included
+//   ungraded    of those, how many have no grade
+//   counts      staff per status, both groups together
+function tnaDashSplitByCoverage($staff)
+{
+    $split = ['own' => [], 'ownFilled' => 0, 'gradeRows' => [], 'gradeStatus' => [], 'gradeStaff' => 0, 'ungraded' => 0,
+        'counts' => ['APPROVED' => 0, 'WAITING APPROVAL' => 0, 'NOT FILLED' => 0]];
+    foreach ($staff as $s) {
+        $split['counts'][$s['status']]++;
+        $done = $s['status'] !== 'NOT FILLED';
+        if (!$s['by_grade']) {
+            $split['own'][] = $s;
+            $split['ownFilled'] += $done ? 1 : 0;
+            continue;
+        }
+        $split['gradeStaff']++;
+        if ($s['grade']) {
+            $split['gradeStatus'][$s['grade']] = $s['status'];
+        } else {
+            $split['ungraded']++;
+        }
+        $key = $s['grade'] . '|' . $s['section'];
+        if (!isset($split['gradeRows'][$key])) {
+            $split['gradeRows'][$key] = ['grade' => $s['grade'], 'label' => $s['covered_by'], 'section' => $s['section'], 'staff' => 0, 'done' => 0, 'status' => $s['status']];
+        }
+        $split['gradeRows'][$key]['staff']++;
+        $split['gradeRows'][$key]['done'] += $done ? 1 : 0;
+    }
+    usort($split['gradeRows'], 'tnaDashCompareGradeRows');
+    return $split;
+}
+
+// Grade rows by grade then section, "No grade" (0) last.
+function tnaDashCompareGradeRows($a, $b)
+{
+    return [$a['grade'] ?: 99, $a['section']] <=> [$b['grade'] ?: 99, $b['section']];
 }
 
 // TNA Submission (by Department): TNAs filled per department - individual
