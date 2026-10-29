@@ -120,6 +120,7 @@ $sql = "SELECT pme.hodid, pme.staffname, pme.staffno, pme.training_title,
               )
           )
           AND pme.status = 'pending'
+          AND NOT EXISTS (SELECT 1 FROM participation pa WHERE pa.id = pme.participationid AND pa.attendance = 'ABSENT')
         ORDER BY pme.training_title, pme.staffname";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("s", $today);

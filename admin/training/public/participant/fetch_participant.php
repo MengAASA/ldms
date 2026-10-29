@@ -21,7 +21,7 @@
 				$btnedit = '<button type="submit" id="'.$row['id'].'" class="btn btn-warning btn-sm absent" style="margin-left:5px;"><i class="far fa-calendar-times"></i> ABSENT?</button><button type="submit" id="'.$row['id'].'" class="btn btn-danger btn-sm delete" style="margin-left:5px;"><i class="fa fa-trash"></i> DELETE</button>';
 			}else if ($row['attendance'] == 'ABSENT') {
 				$status = '<span class="label label-pill label-danger">ABSENT</span>';
-				$btnedit = '<button type="submit" id="'.$row['id'].'" class="btn btn-danger btn-sm delete" style="margin-left:5px;"><i class="fa fa-trash"></i> DELETE</button>';
+				$btnedit = '<button type="submit" id="'.$row['id'].'" class="btn btn-info btn-sm undoabsent" style="margin-left:5px;"><i class="fas fa-undo"></i> UNDO ABSENT</button><button type="submit" id="'.$row['id'].'" class="btn btn-danger btn-sm delete" style="margin-left:5px;"><i class="fa fa-trash"></i> DELETE</button>';
 			}
 
             $output[]= array(

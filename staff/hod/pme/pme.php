@@ -31,6 +31,12 @@
                     LEFT JOIN training t ON p.trainingid = t.id
                     WHERE p.hodid = ?
                     AND u.status != 'RESIGN'
+                    -- nothing to evaluate: closed as not_applicable, or still pending for a participant marked absent
+                    AND p.status != 'not_applicable'
+                    AND NOT (
+                        p.status = 'pending'
+                        AND EXISTS (SELECT 1 FROM participation pa WHERE pa.id = p.participationid AND pa.attendance = 'ABSENT')
+                    )
                     AND (
                         p.designation = 'Executive'
                         OR (

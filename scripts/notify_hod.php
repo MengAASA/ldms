@@ -15,7 +15,8 @@ $sql = "SELECT pme.hodid, pme.staffname, pme.staffno, pme.training_title,
         JOIN training ON pme.trainingid = training.id
         WHERE DATE_ADD(pme.to_date, INTERVAL 1 DAY) = ?
           AND pme.designation IN ('Executive', 'MANAGER (AM/HOS & ABOVE)') 
-          AND pme.status = 'pending'";
+          AND pme.status = 'pending'
+          AND NOT EXISTS (SELECT 1 FROM participation pa WHERE pa.id = pme.participationid AND pa.attendance = 'ABSENT')";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("s", $today);
 $stmt->execute();

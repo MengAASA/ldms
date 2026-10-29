@@ -335,6 +335,56 @@
                 }
             })
         });
+
+        $(document).on('click', '.undoabsent', function(){
+            var id = $(this).attr("id");
+            var btn_action = 'undoabsent';
+            swal({
+                title: "Undo absent?",
+                text: "The participant will be marked as attended again and the PME reopened for the HOD.",
+                icon: "warning",
+                buttons: true,
+                dangerMode: true,
+                buttons: ["Cancel", "Confirm"]
+            })
+            .then((isConfirm) => {
+                if (isConfirm) {
+                    $.ajax({
+                        url:"participant_action.php",
+                        method:"POST",
+                        data:{id:id,btn_action:btn_action},
+                        success:function(data)
+                        {
+                            var response = JSON.parse(data)
+                            if((response.message) == 'undo') {
+                                swal(
+                                    'Changed!',
+                                    'The absent status has been undone.',
+                                    'success'
+                                )
+                                .then(function() {
+                                    $('#participantlist').DataTable().destroy();
+                                    fetch_data('load_participant',trainingid);
+                                })
+                            }
+                            else if((response.message) == 'error') {
+                                swal(
+                                    'Not Changed!',
+                                    'The status cannot be changed. Please refer the IT.',
+                                    'error'
+                                )
+                                .then(function() {
+                                    $('#participantlist').DataTable().destroy();
+                                    fetch_data('load_participant',trainingid);
+                                })
+                            }
+                        }
+                    });
+                }else{
+                    swal("Cancelled", "The status has not been changed", "error");
+                }
+            })
+        });
     </script>
 </html>
 <?php
