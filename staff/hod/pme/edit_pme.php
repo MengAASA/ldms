@@ -10,13 +10,15 @@
     $showSkillMatrixNav = canApproveSkillMatrix();
 
 	//Declare Variable from input
-	$id = $_GET['id'];
+	$id = (int) $_GET['id'];
 
 	//SQL Statement
-	$sql = "SELECT * FROM pme WHERE id='$id'";
+	$stmt = $conn->prepare("SELECT * FROM pme WHERE id=?");
+	$stmt->bind_param('i', $id);
 
-	//Execute to get the data 
-	$result = $conn -> query($sql);
+	//Execute to get the data
+	$stmt->execute();
+	$result = $stmt->get_result();
 	$row = $result -> fetch_assoc();
 ?>
 
@@ -171,28 +173,28 @@
 							<div class="section-title">Employee Information</div>
 							<div class="form-group">
 								<label for="">Employee Name</label>
-								<input type="text" class="form-control" id="staffname" name="staffname" value="<?= $row['staffname']?>"  readonly>
+								<input type="text" class="form-control" id="staffname" name="staffname" value="<?= htmlspecialchars($row['staffname'] ?? '') ?>"  readonly>
 							</div>
 							<div class="form-group">
 								<label for="">Staff No</label>
-								<input type="text" class="form-control" id="staffno" name="staffno" value="<?= $row['staffno']?>" readonly>
+								<input type="text" class="form-control" id="staffno" name="staffno" value="<?= htmlspecialchars($row['staffno'] ?? '') ?>" readonly>
 							</div>
 							<div class="form-group">
 								<label for="">Department</label>
-								<input type="text" class="form-control" id="department" name="department" value="<?= $row['department']?>" readonly>
+								<input type="text" class="form-control" id="department" name="department" value="<?= htmlspecialchars($row['department'] ?? '') ?>" readonly>
 							</div>
 							<div class="form-group">
 								<label for="">Training Title</label>
-								<input type="text" class="form-control" id="training_title" name="training_title" value="<?= $row['training_title']?>" readonly>
+								<input type="text" class="form-control" id="training_title" name="training_title" value="<?= htmlspecialchars($row['training_title'] ?? '') ?>" readonly>
 							</div>
 							<div class="form-group row">	
 								<div class="col-md-6">
 									<label for="">Evaluation Period Start</label>
-									<input type="date" class="form-control date-input" id="from_date" name="from_date" value="<?= $row['from_date']?>" placeholder="From Date" readonly>
+									<input type="date" class="form-control date-input" id="from_date" name="from_date" value="<?= htmlspecialchars($row['from_date'] ?? '') ?>" placeholder="From Date" readonly>
 								</div>
 								<div class="col-md-6">
 									<label for="">Evaluation Period End </label>
-									<input type="date" class="form-control date-input" id="to_date" name="to_date" value="<?= $row['to_date']?>" placeholder="To Date" readonly>
+									<input type="date" class="form-control date-input" id="to_date" name="to_date" value="<?= htmlspecialchars($row['to_date'] ?? '') ?>" placeholder="To Date" readonly>
 								</div>
 							</div>
 
@@ -238,7 +240,7 @@
 									</label>
 								</div>
 									
-									<input type="number" class="form-control" id="level_percent" name="level_percent" value="<?= $row['level_percent']?>"  required placeholder="Please specify the rating criteria, eg 85% = Very Good " readonly>
+									<input type="number" class="form-control" id="level_percent" name="level_percent" value="<?= htmlspecialchars($row['level_percent'] ?? '') ?>"  required placeholder="Please specify the rating criteria, eg 85% = Very Good " readonly>
 								</div>
 								
 								<div class="form-group">
@@ -254,7 +256,7 @@
 										<label class="form-check-label" for="ojtNo">No</label>
 									</div>
 									<label style="margin-top: 10px; display: block;">if yes, please specify the date, time, and location of the training. " If not, kindly provide the reason.</label>
-									<textarea class="form-control" id="level_remark" name="level_remark" rows="2" required><?= $row['level_remark'] ?></textarea>
+									<textarea class="form-control" id="level_remark" name="level_remark" rows="2" required><?= htmlspecialchars($row['level_remark'] ?? '') ?></textarea>
 								</div>
 
 							<!-- 2. Learning Section -->
@@ -298,12 +300,12 @@
 									</label>
 								</div>
 									
-									<input type="number" class="form-control" id="level_percent2" name="level_percent2" value="<?= $row['level_percent2']?>" required placeholder="Please specify the rating criteria, eg 85% = Very Good " readonly>
+									<input type="number" class="form-control" id="level_percent2" name="level_percent2" value="<?= htmlspecialchars($row['level_percent2'] ?? '') ?>" required placeholder="Please specify the rating criteria, eg 85% = Very Good " readonly>
 								</div>
 								
 								<div class="form-group">
 									<label for="remark_level">Remarks :</label>
-									<textarea class="form-control" id="level_remark2" name="level_remark2" rows="2"> <?= $row['level_remark2']?> </textarea>
+									<textarea class="form-control" id="level_remark2" name="level_remark2" rows="2"><?= htmlspecialchars($row['level_remark2'] ?? '') ?></textarea>
 								</div>
 
 							
@@ -348,12 +350,12 @@
 									</label>
 								</div>
 									
-									<input type="number" class="form-control" id="behavioral_percent" name="behavioral_percent" value="<?= $row['behavioral_percent']?>" required placeholder="Please specify the rating criteria, eg 85% = Very Good " readonly>
+									<input type="number" class="form-control" id="behavioral_percent" name="behavioral_percent" value="<?= htmlspecialchars($row['behavioral_percent'] ?? '') ?>" required placeholder="Please specify the rating criteria, eg 85% = Very Good " readonly>
 								</div>
 								
 								<div class="form-group">
 									<label for="remark_level">Remarks :</label>
-									<textarea class="form-control" id="behavioral_remark" name="behavioral_remark" rows="2"> <?= $row['behavioral_remark']?> </textarea>
+									<textarea class="form-control" id="behavioral_remark" name="behavioral_remark" rows="2"><?= htmlspecialchars($row['behavioral_remark'] ?? '') ?></textarea>
 								</div>
 							
 							<!-- Result Section -->
@@ -397,16 +399,16 @@
 									</label>
 								</div>
 									
-									<input type="number" class="form-control" id="result_percent" name="result_percent" value="<?= $row['result_percent']?>" required placeholder="Please specify the rating criteria, eg 85% = Very Good " readonly>
+									<input type="number" class="form-control" id="result_percent" name="result_percent" value="<?= htmlspecialchars($row['result_percent'] ?? '') ?>" required placeholder="Please specify the rating criteria, eg 85% = Very Good " readonly>
 								</div>
 								
 								<div class="form-group">
 									<label for="remark_level">Remarks :</label>
-									<textarea class="form-control" id="result_remark" name="result_remark" rows="2" value="<?= $row['result_remark']?>"> <?= $row['result_remark']?> </textarea>
+									<textarea class="form-control" id="result_remark" name="result_remark" rows="2"><?= htmlspecialchars($row['result_remark'] ?? '') ?></textarea>
 								</div>
 
 			 					<div>
-			 					  <input type="hidden" name="id" value="<?= $row['id']?>">
+			 					  <input type="hidden" name="id" value="<?= htmlspecialchars($row['id'] ?? '') ?>">
 								  <input type="submit" value="submit" class="btn btn-success btn-block">
 								</div>
 						</form>

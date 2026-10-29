@@ -3,8 +3,8 @@ include "../../../../dbconn.php";
 session_start(); // Start session to get admin ID
 
 if (isset($_POST['status']) && isset($_POST['trainingid']) && isset($_POST['userid'])) {
-    $trainingid = $_POST['trainingid'];
-    $userid = $_POST['userid'];
+    $trainingid = (int) $_POST['trainingid'];
+    $userid = (int) $_POST['userid'];
 
     // Ensure admin ID is available
     if (!isset($_SESSION['id'])) {
@@ -15,8 +15,10 @@ if (isset($_POST['status']) && isset($_POST['trainingid']) && isset($_POST['user
     $admin_id = $_SESSION['id']; // Get logged-in admin ID
 
     // Fetch necessary values from the pme table
-    $query = "SELECT level_percent, level_percent2, behavioral_percent, result_percent FROM pme WHERE trainingid = '$trainingid' AND userid = '$userid'";
-    $result = $conn->query($query);
+    $stmt = $conn->prepare("SELECT level_percent, level_percent2, behavioral_percent, result_percent FROM pme WHERE trainingid = ? AND userid = ?");
+    $stmt->bind_param('ii', $trainingid, $userid);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
     if ($result->num_rows > 0) {
         $row = $result->fetch_assoc();
@@ -26,14 +28,16 @@ if (isset($_POST['status']) && isset($_POST['trainingid']) && isset($_POST['user
         $average_mark = $total_mark / 4;
 
         // Update the status, total_mark, average_mark, and track admin ID
-        $update_sql = "UPDATE pme 
-                       SET status = 'verified', 
-                           total_mark = '$total_mark', 
-                           average_mark = '$average_mark', 
-                           verified_by = '$admin_id' 
-                       WHERE trainingid = '$trainingid' AND userid = '$userid'";
+        $update_sql = "UPDATE pme
+                       SET status = 'verified',
+                           total_mark = ?,
+                           average_mark = ?,
+                           verified_by = ?
+                       WHERE trainingid = ? AND userid = ?";
+        $update_stmt = $conn->prepare($update_sql);
+        $update_stmt->bind_param('ddiii', $total_mark, $average_mark, $admin_id, $trainingid, $userid);
 
-        if ($conn->query($update_sql) === TRUE) {
+        if ($update_stmt->execute()) {
             // echo "Verification successful! Admin ID recorded.";
             header("Location: view_pme.php?userid=" . $userid . "&trainingid=" . $trainingid);
             exit();
