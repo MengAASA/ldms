@@ -100,6 +100,56 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 overflow-y: auto;
                 overflow-x: hidden;
             }
+
+            .dash-score-chart {
+                position: relative;
+                height: 360px;
+            }
+
+            /* Overview tiles share the row equally, however many there are. */
+            .dash-tiles {
+                display: flex;
+                flex-wrap: wrap;
+                margin: 0 -7px;
+            }
+
+            .dash-tiles-item {
+                flex: 1 1 0;
+                min-width: 140px;
+                padding: 0 7px;
+            }
+
+            .skill-score-level {
+                display: block;
+                font-size: 11px;
+                color: #777;
+            }
+
+            .skill-score-low {
+                color: #d03b3b;
+                font-weight: bold;
+            }
+
+            .view-tabs {
+                border-bottom: none;
+            }
+
+            .view-tabs > li > a {
+                background: #f5f5f5;
+                color: #333;
+                font-weight: bold;
+                margin-right: 4px;
+            }
+
+            .view-tabs > li.active > a,
+            .view-tabs > li.active > a:hover,
+            .view-tabs > li.active > a:focus {
+                background: #fff;
+            }
+
+            #view_tabs + .tab-content > .tab-pane > .row:first-child .panel {
+                border-top-left-radius: 0;
+            }
         </style>
     </head>
 
@@ -234,56 +284,22 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                                     </label>
                                 </div>
                             <?php } ?>
+                            <ul class="nav nav-pills" id="period_tabs" style="margin-top: 12px;">
+                                <li class="active"><a href="#" data-period="current">Evaluation Quarter (Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>)</a></li>
+                                <li><a href="#" data-period="previous">Previous Quarter (Q<?php echo $previousQuarter; ?> <?php echo $previousYear; ?>)</a></li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="panel panel-default">
-                        <div class="panel-heading">
-                            <div class="row">
-                                <div class="col-md-8" style="margin-top: 10px;">
-                                    <strong>Staff List</strong>
-                                </div>
-                                <div class="col-md-4" align="right">
-                                    <button type="button" id="export_excel_btn" class="btn btn-success btn-md">
-                                        <i class="fa fa-file-excel"></i> Export Excel
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="panel-body">
-                            <ul class="nav nav-tabs" id="period_tabs" style="margin-bottom: 15px;">
-                                <li class="active"><a href="#" data-period="current">Evaluation Quarter (Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>)</a></li>
-                                <li><a href="#" data-period="previous">Previous Quarter (Q<?php echo $previousQuarter; ?> <?php echo $previousYear; ?>)</a></li>
-                            </ul>
-                            <div class="row">
-                                <div class="col-sm-12 table-responsive">
-                                    <table id="skillmatrixlist" class="table table-bordered table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>No.</th>
-                                                <th>Staff No.</th>
-                                                <th>Employee Name</th>
-                                                <th>Department</th>
-                                                <th>Section</th>
-                                                <th>Plant</th>
-                                                <th>Grade</th>
-                                                <th>Status</th>
-                                                <th>Approval Status</th>
-                                                <th>Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <ul class="nav nav-tabs view-tabs" id="view_tabs">
+                <li class="active"><a href="#tab-dashboard" data-toggle="tab"><i class="fa fa-chart-bar"></i> Dashboard</a></li>
+                <li><a href="#tab-stafflist" data-toggle="tab"><i class="fa fa-users"></i> Staff List</a></li>
+            </ul>
+
+            <div class="tab-content">
+            <div class="tab-pane active" id="tab-dashboard">
 
             <div class="row">
                 <div class="col-md-12">
@@ -292,41 +308,47 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                             <strong>Skill Matrix Overview</strong>
                         </div>
                         <div class="panel-body">
-                            <div class="row">
-                                <div class="col-md-2 col-sm-4 col-xs-6">
+                            <div class="dash-tiles">
+                                <div class="dash-tiles-item">
                                     <div class="dash-tile">
                                         <div class="dash-tile-value" id="kpi-total">0</div>
                                         <div class="dash-tile-label">Total Staff</div>
                                     </div>
                                 </div>
-                                <div class="col-md-2 col-sm-4 col-xs-6">
+                                <div class="dash-tiles-item">
                                     <div class="dash-tile" style="border-left-color: var(--status-good);">
                                         <div class="dash-tile-value" id="kpi-completion">0%</div>
                                         <div class="dash-tile-label">Completion Rate</div>
                                     </div>
                                 </div>
-                                <div class="col-md-2 col-sm-4 col-xs-6">
+                                <div class="dash-tiles-item">
                                     <div class="dash-tile" style="border-left-color: var(--status-good);">
                                         <div class="dash-tile-value" id="kpi-approved">0</div>
                                         <div class="dash-tile-label">Approved</div>
                                     </div>
                                 </div>
-                                <div class="col-md-2 col-sm-4 col-xs-6">
+                                <div class="dash-tiles-item">
                                     <div class="dash-tile" style="border-left-color: var(--status-warning);">
                                         <div class="dash-tile-value" id="kpi-waiting">0</div>
                                         <div class="dash-tile-label">Waiting Approval</div>
                                     </div>
                                 </div>
-                                <div class="col-md-2 col-sm-4 col-xs-6">
+                                <div class="dash-tiles-item">
                                     <div class="dash-tile" style="border-left-color: var(--status-serious);">
                                         <div class="dash-tile-value" id="kpi-draft">0</div>
                                         <div class="dash-tile-label">Draft</div>
                                     </div>
                                 </div>
-                                <div class="col-md-2 col-sm-4 col-xs-6">
+                                <div class="dash-tiles-item">
                                     <div class="dash-tile" style="border-left-color: var(--status-critical);">
                                         <div class="dash-tile-value" id="kpi-notsubmitted">0</div>
                                         <div class="dash-tile-label">Not Submitted</div>
+                                    </div>
+                                </div>
+                                <div class="dash-tiles-item">
+                                    <div class="dash-tile" style="border-left-color: var(--status-critical);" title="Staff whose approved skill matrix scores below 50% (Novice or Minimal Competency)">
+                                        <div class="dash-tile-value" id="kpi-below50">0</div>
+                                        <div class="dash-tile-label">Score Below 50%</div>
                                     </div>
                                 </div>
                             </div>
@@ -386,6 +408,128 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <strong id="dashboard-score-group-title">Average Skill Score by Department</strong>
+                        </div>
+                        <div class="panel-body" align="center">
+                            <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage. Approved matrices only.</div>
+                            <div class="dash-score-chart">
+                                <canvas id="dashboard-score-group-chart"></canvas>
+                            </div>
+                            <div class="text-muted" id="dashboard-score-group-empty" style="display:none;text-align:center;padding:30px 0;">
+                                No approved skill matrix for the current filter.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <strong>Average Skill Score by Plant</strong>
+                        </div>
+                        <div class="panel-body" align="center">
+                            <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage. Approved matrices only.</div>
+                            <div class="dash-score-chart">
+                                <canvas id="dashboard-score-plant-chart"></canvas>
+                            </div>
+                            <div class="text-muted" id="dashboard-score-plant-empty" style="display:none;text-align:center;padding:30px 0;">
+                                No approved skill matrix for the current filter.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <strong id="dashboard-below50-title">Staff Below 50% by Department</strong>
+                        </div>
+                        <div class="panel-body" align="center">
+                            <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Number of staff whose skill matrix scores below 50% (Novice or Minimal Competency). Approved matrices only.</div>
+                            <div class="dash-score-chart">
+                                <canvas id="dashboard-below50-chart"></canvas>
+                            </div>
+                            <div class="text-muted" id="dashboard-below50-empty" style="display:none;text-align:center;padding:30px 0;">
+                                No staff below 50% for the current filter.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <strong>Average Skill Score by Quarter</strong>
+                        </div>
+                        <div class="panel-body" align="center">
+                            <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage for each quarter, up to the last 8. Approved matrices only. Follows the department filter, not the quarter selected above.</div>
+                            <div class="dash-score-chart">
+                                <canvas id="dashboard-score-quarter-chart"></canvas>
+                            </div>
+                            <div class="text-muted" id="dashboard-score-quarter-empty" style="display:none;text-align:center;padding:30px 0;">
+                                No approved skill matrix for the current filter.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            </div>
+            <div class="tab-pane" id="tab-stafflist">
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <div class="row">
+                                <div class="col-md-8" style="margin-top: 10px;">
+                                    <strong>Staff List</strong>
+                                </div>
+                                <div class="col-md-4" align="right">
+                                    <button type="button" id="export_excel_btn" class="btn btn-success btn-md">
+                                        <i class="fa fa-file-excel"></i> Export Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="row">
+                                <div class="col-sm-12 table-responsive">
+                                    <table id="skillmatrixlist" class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>No.</th>
+                                                <th>Staff No.</th>
+                                                <th>Employee Name</th>
+                                                <th>Department</th>
+                                                <th>Section</th>
+                                                <th>Plant</th>
+                                                <th>Grade</th>
+                                                <th>Status</th>
+                                                <th>Approval Status</th>
+                                                <th>Skill Score</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            </div>
             </div>
         </div>
     </body>
@@ -470,17 +614,35 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                     "data": "approval_status"
                 },
                 {
+                    // Approved matrices only; sorts by the number, staff without one last.
+                    "data": "overall_score",
+                    "render": function (score, type) {
+                        if (type == 'sort' || type == 'type') {
+                            return score === null ? -1 : parseFloat(score);
+                        }
+                        if (score === null) {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        var level = scoreLevelLabel(score);
+                        if (type == 'filter') {
+                            return score + '% ' + level;
+                        }
+                        return '<span class="' + (score < 50 ? 'skill-score-low' : '') + '">' + parseFloat(score).toFixed(1) + '%</span>' +
+                            '<span class="skill-score-level">' + level + '</span>';
+                    }
+                },
+                {
                     "data": "action"
                 }
             ],
             "columnDefs": [{
                 className: 'text-center',
-                targets: [0, 1, 6, 7, 8, 9]
+                targets: [0, 1, 6, 7, 8, 9, 10]
             },
             {
                 orderable: false,
                 searchable: false,
-                targets: [0, 9]
+                targets: [0, 10]
             }],
             "drawCallback": function () {
                 var api = this.api();
@@ -504,7 +666,286 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             'WAITING APPROVAL': '#fab219',
             'APPROVED': '#0ca30c'
         };
-        var charts = { status: null, section: null, plant: null };
+        var charts = { status: null, section: null, plant: null, scoreGroup: null, below50: null, scorePlant: null, scoreQuarter: null };
+
+        // Same bands and rounding-down as matrix-chart.php (matrixPieLevel).
+        var SCORE_LEVELS = [
+            { min: 100, label: 'Highly Skilled' },
+            { min: 75, label: 'Competent' },
+            { min: 50, label: 'Medium Competency' },
+            { min: 25, label: 'Novice' },
+            { min: 0, label: 'Minimal Competency' }
+        ];
+        // One colour per bar, cycled when there are more bars than colours.
+        var SCORE_BAR_COLORS = [
+            '#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2',
+            '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac',
+            '#1f77b4', '#17becf', '#8c564b', '#bcbd22', '#7f7f7f',
+            '#2ca02c', '#9467bd', '#d62728', '#ff7f0e', '#e377c2'
+        ];
+
+        // Splits a long name over several lines so the x-axis labels stay readable.
+        function wrapChartLabel(text, maxChars) {
+            var lines = [];
+            var line = '';
+            text.split(' ').forEach(function (word) {
+                if (line && (line + ' ' + word).length > maxChars) {
+                    lines.push(line);
+                    line = word;
+                } else {
+                    line = line ? line + ' ' + word : word;
+                }
+            });
+            if (line) {
+                lines.push(line);
+            }
+            return lines;
+        }
+
+        function scoreLevelLabel(score) {
+            for (var i = 0; i < SCORE_LEVELS.length; i++) {
+                if (score >= SCORE_LEVELS[i].min) {
+                    return SCORE_LEVELS[i].label;
+                }
+            }
+            return SCORE_LEVELS[SCORE_LEVELS.length - 1].label;
+        }
+
+        // Average overall_score per group, ignoring staff without an approved matrix.
+        function buildScoreGroups(rows, keyFn) {
+            var groups = {};
+            rows.forEach(function (r) {
+                if (r.overall_score === null || r.overall_score === undefined) {
+                    return;
+                }
+                var key = (keyFn(r) || '').toString().trim() || '(Unspecified)';
+                if (!groups[key]) {
+                    groups[key] = { sum: 0, count: 0 };
+                }
+                groups[key].sum += parseFloat(r.overall_score);
+                groups[key].count++;
+            });
+            $.each(groups, function (key, g) {
+                g.average = g.sum / g.count;
+            });
+            return groups;
+        }
+
+        // Writes the average on top of each bar (or the chart's own options.valueLabel text).
+        var scoreValueLabelPlugin = {
+            afterDatasetsDraw: function (chart) {
+                var ctx = chart.ctx;
+                var meta = chart.getDatasetMeta(0);
+                ctx.save();
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                meta.data.forEach(function (bar, index) {
+                    var value = chart.data.datasets[0].data[index];
+                    if (value === null) {
+                        ctx.fillStyle = '#999';
+                        ctx.fillText('No result', bar._model.x, chart.chartArea.bottom - 3);
+                        ctx.fillStyle = '#333';
+                        return;
+                    }
+                    var text = chart.options.valueLabel ? chart.options.valueLabel(value) : Math.round(value) + '%';
+                    ctx.fillText(text, bar._model.x, bar._model.y - 3);
+                });
+                ctx.restore();
+            }
+        };
+
+        // Staff below 50% per group: { name: { below, novice, minimal, approved } },
+        // only groups that have at least one.
+        function buildBelow50Groups(rows, keyFn) {
+            var groups = {};
+            rows.forEach(function (r) {
+                if (r.overall_score === null || r.overall_score === undefined) {
+                    return;
+                }
+                var key = (keyFn(r) || '').toString().trim() || '(Unspecified)';
+                if (!groups[key]) {
+                    groups[key] = { below: 0, novice: 0, minimal: 0, approved: 0 };
+                }
+                var score = parseFloat(r.overall_score);
+                groups[key].approved++;
+                if (score < 50) {
+                    groups[key].below++;
+                    groups[key][score >= 25 ? 'novice' : 'minimal']++;
+                }
+            });
+            $.each(groups, function (key, g) {
+                if (g.below === 0) {
+                    delete groups[key];
+                }
+            });
+            return groups;
+        }
+
+        function updateBelow50Chart(canvas, emptyEl, groups) {
+            var groupNames = Object.keys(groups).sort(function (a, b) {
+                return groups[b].below - groups[a].below;
+            });
+
+            if (groupNames.length === 0) {
+                $(emptyEl).show();
+                $(canvas).hide();
+                if (charts.below50) {
+                    charts.below50.destroy();
+                    charts.below50 = null;
+                }
+                return;
+            }
+            $(emptyEl).hide();
+            $(canvas).show();
+
+            var chartData = {
+                labels: groupNames.map(function (name) { return wrapChartLabel(name, 12); }),
+                datasets: [{
+                    label: 'Staff Below 50%',
+                    backgroundColor: groupNames.map(function (name, index) {
+                        return SCORE_BAR_COLORS[index % SCORE_BAR_COLORS.length];
+                    }),
+                    data: groupNames.map(function (name) { return groups[name].below; })
+                }]
+            };
+            var chartOptions = {
+                maintainAspectRatio: false,
+                legend: { display: false },
+                layout: { padding: { top: 20 } },
+                plugins: { labels: false },
+                valueLabel: function (value) { return value; },
+                tooltips: {
+                    callbacks: {
+                        title: function (tooltipItems) {
+                            return groupNames[tooltipItems[0].index];
+                        },
+                        label: function (tooltipItem) {
+                            var group = groups[groupNames[tooltipItem.index]];
+                            return group.below + ' of ' + group.approved + ' approved staff below 50% (' +
+                                Math.round(group.below / group.approved * 100) + '%)';
+                        },
+                        afterLabel: function (tooltipItem) {
+                            var group = groups[groupNames[tooltipItem.index]];
+                            return 'Novice: ' + group.novice + ', Minimal Competency: ' + group.minimal;
+                        }
+                    }
+                },
+                scales: {
+                    xAxes: [{
+                        barPercentage: 0.7,
+                        maxBarThickness: 60,
+                        gridLines: { display: false },
+                        ticks: { autoSkip: false, maxRotation: 0, fontSize: 10 }
+                    }],
+                    yAxes: [{
+                        ticks: { beginAtZero: true, precision: 0 }
+                    }]
+                }
+            };
+
+            if (charts.below50) {
+                charts.below50.data = chartData;
+                charts.below50.options = chartOptions;
+                charts.below50.update();
+            } else {
+                charts.below50 = new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    data: chartData,
+                    options: chartOptions,
+                    plugins: [scoreValueLabelPlugin]
+                });
+            }
+        }
+
+        // groups: { name: { average, count } }, average null for a group with no result.
+        // Bars are sorted highest first unless groupNames gives the order.
+        function updateScoreChart(chartKey, canvas, emptyEl, groups, groupNames) {
+            groupNames = groupNames || Object.keys(groups).sort(function (a, b) {
+                return groups[b].average - groups[a].average;
+            });
+
+            if (groupNames.length === 0) {
+                $(emptyEl).show();
+                $(canvas).hide();
+                if (charts[chartKey]) {
+                    charts[chartKey].destroy();
+                    charts[chartKey] = null;
+                }
+                return;
+            }
+            $(emptyEl).hide();
+            $(canvas).show();
+
+            var chartData = {
+                labels: groupNames.map(function (name) { return wrapChartLabel(name, 12); }),
+                datasets: [{
+                    label: 'Average Skill Score',
+                    backgroundColor: groupNames.map(function (name, index) {
+                        return SCORE_BAR_COLORS[index % SCORE_BAR_COLORS.length];
+                    }),
+                    data: groupNames.map(function (name) {
+                        return groups[name].average === null ? null : Math.round(groups[name].average * 100) / 100;
+                    })
+                }]
+            };
+            var chartOptions = {
+                maintainAspectRatio: false,
+                legend: { display: false },
+                // Room above the bars for the % labels on scores near 100%.
+                layout: { padding: { top: 20 } },
+                // chartjs-plugin-labels also draws on 'bar' charts; this chart has its own labels.
+                plugins: { labels: false },
+                tooltips: {
+                    callbacks: {
+                        title: function (tooltipItems) {
+                            return groupNames[tooltipItems[0].index];
+                        },
+                        label: function (tooltipItem) {
+                            var group = groups[groupNames[tooltipItem.index]];
+                            if (group.average === null) {
+                                return 'No result';
+                            }
+                            return 'Average: ' + group.average.toFixed(1) + '% (' + scoreLevelLabel(group.average) + ')';
+                        },
+                        afterLabel: function (tooltipItem) {
+                            var count = groups[groupNames[tooltipItem.index]].count;
+                            return count + ' approved matri' + (count == 1 ? 'x' : 'ces');
+                        }
+                    }
+                },
+                scales: {
+                    xAxes: [{
+                        barPercentage: 0.7,
+                        maxBarThickness: 60,
+                        gridLines: { display: false },
+                        ticks: { autoSkip: false, maxRotation: 0, fontSize: 10 }
+                    }],
+                    yAxes: [{
+                        ticks: {
+                            min: 0,
+                            max: 100,
+                            stepSize: 25,
+                            callback: function (value) { return value + '%'; }
+                        }
+                    }]
+                }
+            };
+
+            if (charts[chartKey]) {
+                charts[chartKey].data = chartData;
+                charts[chartKey].options = chartOptions;
+                charts[chartKey].update();
+            } else {
+                charts[chartKey] = new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    data: chartData,
+                    options: chartOptions,
+                    plugins: [scoreValueLabelPlugin]
+                });
+            }
+        }
 
         function emptyStatusCounts() {
             return { 'NOT SUBMITTED': 0, 'DRAFT': 0, 'WAITING APPROVAL': 0, 'APPROVED': 0, total: 0 };
@@ -601,6 +1042,9 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             $('#kpi-waiting').text(counts['WAITING APPROVAL']);
             $('#kpi-draft').text(counts['DRAFT']);
             $('#kpi-notsubmitted').text(counts['NOT SUBMITTED']);
+            $('#kpi-below50').text(rows.filter(function (r) {
+                return r.overall_score !== null && r.overall_score !== undefined && parseFloat(r.overall_score) < 50;
+            }).length);
 
             var deptGroups = buildGroups(rows, function (r) { return r.department; });
             var sectionGroups = buildGroups(rows, function (r) { return r.section; });
@@ -639,10 +1083,70 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 sortedGroupNames(plantGroups),
                 plantGroups
             );
+
+            // ===== Average Skill Score by Department, or by Section once a department is picked =====
+            $('#dashboard-score-group-title').text(departmentFilterActive ? 'Average Skill Score by Section' : 'Average Skill Score by Department');
+            updateScoreChart(
+                'scoreGroup',
+                document.getElementById('dashboard-score-group-chart'),
+                '#dashboard-score-group-empty',
+                buildScoreGroups(rows, departmentFilterActive
+                    ? function (r) { return r.section; }
+                    : function (r) { return r.department; })
+            );
+
+            // ===== Staff Below 50% by Department, or by Section once a department is picked =====
+            $('#dashboard-below50-title').text(departmentFilterActive ? 'Staff Below 50% by Section' : 'Staff Below 50% by Department');
+            updateBelow50Chart(
+                document.getElementById('dashboard-below50-chart'),
+                '#dashboard-below50-empty',
+                buildBelow50Groups(rows, departmentFilterActive
+                    ? function (r) { return r.section; }
+                    : function (r) { return r.department; })
+            );
+
+            // ===== Average Skill Score by Plant =====
+            updateScoreChart(
+                'scorePlant',
+                document.getElementById('dashboard-score-plant-chart'),
+                '#dashboard-score-plant-empty',
+                buildScoreGroups(rows, function (r) { return r.plant; })
+            );
+        }
+
+        // ===== Average Skill Score by Quarter: its own request, since it spans quarters =====
+        var quarterScoresRequest = null;
+
+        function loadQuarterScores() {
+            if (quarterScoresRequest) {
+                quarterScoresRequest.abort();
+            }
+            quarterScoresRequest = $.post("fetch_skill_matrix.php", {
+                action: "load_quarter_scores",
+                department: $('#department').val() || 'ALL',
+                section: $('#section').val() || 'ALL',
+                plant: $('#plant').val() || 'ALL',
+                include_off: includeOffDepartments()
+            }, function (data) {
+                var groups = {};
+                var quarterNames = [];
+                $.each(data || [], function (i, q) {
+                    groups[q.label] = { average: q.average, count: q.count };
+                    quarterNames.push(q.label);
+                });
+                updateScoreChart(
+                    'scoreQuarter',
+                    document.getElementById('dashboard-score-quarter-chart'),
+                    '#dashboard-score-quarter-empty',
+                    groups,
+                    quarterNames
+                );
+            }, 'json');
         }
 
         skillMatrixTable.on('xhr', function (e, settings, json) {
             renderDashboard(json);
+            loadQuarterScores();
         });
 
         function loadDepartments() {
@@ -771,6 +1275,32 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             }
             skillMatrixTable.ajax.reload();
         });
+
+        // Dashboard / Staff List tabs. Charts and the table are drawn while their tab
+        // may be hidden (zero width), so resize them once their tab is shown.
+        $('#view_tabs a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+            var target = $(e.target).attr('href');
+            if (target == '#tab-dashboard') {
+                $.each(charts, function (key, chart) {
+                    if (chart) {
+                        chart.resize();
+                    }
+                });
+            } else {
+                skillMatrixTable.columns.adjust();
+            }
+            try {
+                sessionStorage.setItem('skillMatrixViewTab', target);
+            } catch (err) { }
+        });
+
+        // Reopen the last tab used, so coming back from a staff's matrix lands on the Staff List.
+        try {
+            var lastViewTab = sessionStorage.getItem('skillMatrixViewTab');
+            if (lastViewTab) {
+                $('#view_tabs a[href="' + lastViewTab + '"]').tab('show');
+            }
+        } catch (err) { }
 
     </script>
 
