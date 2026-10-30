@@ -2,6 +2,7 @@
 session_start();
 include "../../../dbconn.php";
 include "../../../skill_matrix_period.php";
+include "../../../skill_matrix_score.php";
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -30,7 +31,7 @@ if (!skillMatrixDepartmentEnabled()) {
 if (
     (!$isSmWhitelisted && !$isRegularManager) ||
     !isset($_POST["action"]) ||
-    $_POST["action"] != "load_non_executive_staff"
+    !in_array($_POST["action"], array("load_non_executive_staff", "load_quarter_scores"))
 ) {
     respondJson($output);
 }
@@ -63,12 +64,23 @@ if ($department == '') {
     respondJson($output);
 }
 
+// Dashboard "Average Skill Score by Quarter" for this department.
+if ($_POST["action"] == "load_quarter_scores") {
+    respondJson(skillMatrixQuarterScores(
+        $conn,
+        "u.designation IN ('NON EXECUTIVE', 'CONTRACT') AND u.status != 'RESIGN' AND u.department = ?",
+        "s",
+        array($department)
+    ));
+}
+
 $sql = "SELECT
             u.id,
             u.staffno,
             u.staffname,
             u.grade,
             u.status,
+            u.plant,
             COALESCE(dp.name, u.department) AS department,
             COALESCE(s.name, u.section) AS section,
             (
@@ -86,7 +98,16 @@ $sql = "SELECT
                 WHERE sme.staffid = u.id
                 AND sme.eval_year = ?
                 AND sme.eval_quarter = ?
-            ) AS has_current_quarter_evaluation
+            ) AS has_current_quarter_evaluation,
+            (
+                SELECT sme.id
+                FROM skill_matrix_evaluations sme
+                WHERE sme.staffid = u.id
+                AND sme.eval_year = ?
+                AND sme.eval_quarter = ?
+                ORDER BY sme.evaluation_date DESC, sme.id DESC
+                LIMIT 1
+            ) AS evaluation_id
         FROM user u
         LEFT JOIN departments dp ON u.department_id = dp.id
         LEFT JOIN sections s ON u.section_id = s.id
@@ -103,18 +124,24 @@ if (!$stmt) {
 $designation1 = "NON EXECUTIVE";
 $designation2 = "CONTRACT";
 $inactiveStatus = "RESIGN";
-$stmt->bind_param("iiiissss", $currentYear, $currentQuarter, $currentYear, $currentQuarter, $designation1, $designation2, $inactiveStatus, $department);
+$stmt->bind_param("iiiiiissss", $currentYear, $currentQuarter, $currentYear, $currentQuarter, $currentYear, $currentQuarter, $designation1, $designation2, $inactiveStatus, $department);
 $stmt->execute();
 $result = $stmt->get_result();
+// evaluation_id => position in $output, for staff whose matrix is approved.
+$approvedOutputIndex = array();
 
 while ($row = $result->fetch_assoc()) {
     if ($row['approval_status'] == 'APPROVED') {
+        $approvalStatusRaw = 'APPROVED';
         $approvalStatus = '<span class="label label-pill label-success">APPROVED</span>';
     } else if ($row['approval_status'] == 'PENDING') {
+        $approvalStatusRaw = 'WAITING APPROVAL';
         $approvalStatus = '<span class="label label-pill label-warning">WAITING APPROVAL</span>';
     } else if ($row['has_current_quarter_evaluation']) {
+        $approvalStatusRaw = 'DRAFT';
         $approvalStatus = '<span class="label label-pill label-default">DRAFT</span>';
     } else {
+        $approvalStatusRaw = 'NOT SUBMITTED';
         $approvalStatus = '<span class="label label-pill label-default">NOT SUBMITTED</span>';
     }
 
@@ -158,7 +185,19 @@ while ($row = $result->fetch_assoc()) {
         'status' => '<span class="label label-pill label-success">ACTIVE</span>',
         'approval_status' => $approvalStatus,
         'action' => $action,
+        'plant' => $row['plant'],
+        'approval_status_raw' => $approvalStatusRaw,
+        'overall_score' => null,
     );
+
+    if ($row['approval_status'] == 'APPROVED') {
+        $approvedOutputIndex[(int) $row['evaluation_id']] = count($output) - 1;
+    }
+}
+
+// Overall score for the dashboard and Skill Score column, approved matrices only.
+foreach (skillMatrixOverallScores($conn, array_keys($approvedOutputIndex)) as $evaluationId => $score) {
+    $output[$approvedOutputIndex[$evaluationId]]['overall_score'] = $score;
 }
 
 respondJson($output);

@@ -42,6 +42,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
         <script src="../../asset/js/bootstrap.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
         <script src="../../asset/js/chartjs-plugin-labels.js"></script>
+        <script src="../../asset/js/skill-matrix-dashboard.js"></script>
         <script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
         <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.1/css/all.css">
         <link rel="stylesheet" href="../../asset/css/datepicker.css">
@@ -104,6 +105,42 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             .dash-score-chart {
                 position: relative;
                 height: 360px;
+            }
+
+            /* "Nothing to show" message, centred in the chart's space so the panel keeps its height. */
+            .dash-chart-empty {
+                position: absolute;
+                top: 50%;
+                left: 0;
+                right: 0;
+                transform: translateY(-50%);
+                text-align: center;
+            }
+
+            /* Side-by-side panels in this row stretch to the same height. */
+            .dash-equal-row {
+                display: flex;
+                flex-wrap: wrap;
+            }
+
+            .dash-equal-row:before,
+            .dash-equal-row:after {
+                display: none;
+            }
+
+            .dash-equal-row > [class*="col-"] {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .dash-equal-row > [class*="col-"] > .panel {
+                flex: 1;
+            }
+
+            @media (max-width: 991px) {
+                .dash-equal-row > [class*="col-"] {
+                    width: 100%;
+                }
             }
 
             /* Overview tiles share the row equally, however many there are. */
@@ -420,9 +457,9 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                             <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage. Approved matrices only.</div>
                             <div class="dash-score-chart">
                                 <canvas id="dashboard-score-group-chart"></canvas>
-                            </div>
-                            <div class="text-muted" id="dashboard-score-group-empty" style="display:none;text-align:center;padding:30px 0;">
-                                No approved skill matrix for the current filter.
+                                <div class="text-muted dash-chart-empty" id="dashboard-score-group-empty" style="display:none;">
+                                    No approved skill matrix for the current filter.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -439,16 +476,16 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                             <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage. Approved matrices only.</div>
                             <div class="dash-score-chart">
                                 <canvas id="dashboard-score-plant-chart"></canvas>
-                            </div>
-                            <div class="text-muted" id="dashboard-score-plant-empty" style="display:none;text-align:center;padding:30px 0;">
-                                No approved skill matrix for the current filter.
+                                <div class="text-muted dash-chart-empty" id="dashboard-score-plant-empty" style="display:none;">
+                                    No approved skill matrix for the current filter.
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="row">
+            <div class="row dash-equal-row">
                 <div class="col-md-6">
                     <div class="panel panel-default">
                         <div class="panel-heading">
@@ -458,9 +495,9 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                             <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Number of staff whose skill matrix scores below 50% (Novice or Minimal Competency). Approved matrices only.</div>
                             <div class="dash-score-chart">
                                 <canvas id="dashboard-below50-chart"></canvas>
-                            </div>
-                            <div class="text-muted" id="dashboard-below50-empty" style="display:none;text-align:center;padding:30px 0;">
-                                No staff below 50% for the current filter.
+                                <div class="text-muted dash-chart-empty" id="dashboard-below50-empty" style="display:none;">
+                                    No staff below 50% for the current filter.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -474,9 +511,9 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                             <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage for each quarter, up to the last 8. Approved matrices only. Follows the department filter, not the quarter selected above.</div>
                             <div class="dash-score-chart">
                                 <canvas id="dashboard-score-quarter-chart"></canvas>
-                            </div>
-                            <div class="text-muted" id="dashboard-score-quarter-empty" style="display:none;text-align:center;padding:30px 0;">
-                                No approved skill matrix for the current filter.
+                                <div class="text-muted dash-chart-empty" id="dashboard-score-quarter-empty" style="display:none;">
+                                    No approved skill matrix for the current filter.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -659,373 +696,6 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             }
         });
 
-        var STATUS_ORDER = ['NOT SUBMITTED', 'DRAFT', 'WAITING APPROVAL', 'APPROVED'];
-        var STATUS_COLORS = {
-            'NOT SUBMITTED': '#d03b3b',
-            'DRAFT': '#ec835a',
-            'WAITING APPROVAL': '#fab219',
-            'APPROVED': '#0ca30c'
-        };
-        var charts = { status: null, section: null, plant: null, scoreGroup: null, below50: null, scorePlant: null, scoreQuarter: null };
-
-        // Same bands and rounding-down as matrix-chart.php (matrixPieLevel).
-        var SCORE_LEVELS = [
-            { min: 100, label: 'Highly Skilled' },
-            { min: 75, label: 'Competent' },
-            { min: 50, label: 'Medium Competency' },
-            { min: 25, label: 'Novice' },
-            { min: 0, label: 'Minimal Competency' }
-        ];
-        // One colour per bar, cycled when there are more bars than colours.
-        var SCORE_BAR_COLORS = [
-            '#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2',
-            '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac',
-            '#1f77b4', '#17becf', '#8c564b', '#bcbd22', '#7f7f7f',
-            '#2ca02c', '#9467bd', '#d62728', '#ff7f0e', '#e377c2'
-        ];
-
-        // Splits a long name over several lines so the x-axis labels stay readable.
-        function wrapChartLabel(text, maxChars) {
-            var lines = [];
-            var line = '';
-            text.split(' ').forEach(function (word) {
-                if (line && (line + ' ' + word).length > maxChars) {
-                    lines.push(line);
-                    line = word;
-                } else {
-                    line = line ? line + ' ' + word : word;
-                }
-            });
-            if (line) {
-                lines.push(line);
-            }
-            return lines;
-        }
-
-        function scoreLevelLabel(score) {
-            for (var i = 0; i < SCORE_LEVELS.length; i++) {
-                if (score >= SCORE_LEVELS[i].min) {
-                    return SCORE_LEVELS[i].label;
-                }
-            }
-            return SCORE_LEVELS[SCORE_LEVELS.length - 1].label;
-        }
-
-        // Average overall_score per group, ignoring staff without an approved matrix.
-        function buildScoreGroups(rows, keyFn) {
-            var groups = {};
-            rows.forEach(function (r) {
-                if (r.overall_score === null || r.overall_score === undefined) {
-                    return;
-                }
-                var key = (keyFn(r) || '').toString().trim() || '(Unspecified)';
-                if (!groups[key]) {
-                    groups[key] = { sum: 0, count: 0 };
-                }
-                groups[key].sum += parseFloat(r.overall_score);
-                groups[key].count++;
-            });
-            $.each(groups, function (key, g) {
-                g.average = g.sum / g.count;
-            });
-            return groups;
-        }
-
-        // Writes the average on top of each bar (or the chart's own options.valueLabel text).
-        var scoreValueLabelPlugin = {
-            afterDatasetsDraw: function (chart) {
-                var ctx = chart.ctx;
-                var meta = chart.getDatasetMeta(0);
-                ctx.save();
-                ctx.font = 'bold 11px sans-serif';
-                ctx.fillStyle = '#333';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                meta.data.forEach(function (bar, index) {
-                    var value = chart.data.datasets[0].data[index];
-                    if (value === null) {
-                        ctx.fillStyle = '#999';
-                        ctx.fillText('No result', bar._model.x, chart.chartArea.bottom - 3);
-                        ctx.fillStyle = '#333';
-                        return;
-                    }
-                    var text = chart.options.valueLabel ? chart.options.valueLabel(value) : Math.round(value) + '%';
-                    ctx.fillText(text, bar._model.x, bar._model.y - 3);
-                });
-                ctx.restore();
-            }
-        };
-
-        // Staff below 50% per group: { name: { below, novice, minimal, approved } },
-        // only groups that have at least one.
-        function buildBelow50Groups(rows, keyFn) {
-            var groups = {};
-            rows.forEach(function (r) {
-                if (r.overall_score === null || r.overall_score === undefined) {
-                    return;
-                }
-                var key = (keyFn(r) || '').toString().trim() || '(Unspecified)';
-                if (!groups[key]) {
-                    groups[key] = { below: 0, novice: 0, minimal: 0, approved: 0 };
-                }
-                var score = parseFloat(r.overall_score);
-                groups[key].approved++;
-                if (score < 50) {
-                    groups[key].below++;
-                    groups[key][score >= 25 ? 'novice' : 'minimal']++;
-                }
-            });
-            $.each(groups, function (key, g) {
-                if (g.below === 0) {
-                    delete groups[key];
-                }
-            });
-            return groups;
-        }
-
-        function updateBelow50Chart(canvas, emptyEl, groups) {
-            var groupNames = Object.keys(groups).sort(function (a, b) {
-                return groups[b].below - groups[a].below;
-            });
-
-            if (groupNames.length === 0) {
-                $(emptyEl).show();
-                $(canvas).hide();
-                if (charts.below50) {
-                    charts.below50.destroy();
-                    charts.below50 = null;
-                }
-                return;
-            }
-            $(emptyEl).hide();
-            $(canvas).show();
-
-            var chartData = {
-                labels: groupNames.map(function (name) { return wrapChartLabel(name, 12); }),
-                datasets: [{
-                    label: 'Staff Below 50%',
-                    backgroundColor: groupNames.map(function (name, index) {
-                        return SCORE_BAR_COLORS[index % SCORE_BAR_COLORS.length];
-                    }),
-                    data: groupNames.map(function (name) { return groups[name].below; })
-                }]
-            };
-            var chartOptions = {
-                maintainAspectRatio: false,
-                legend: { display: false },
-                layout: { padding: { top: 20 } },
-                plugins: { labels: false },
-                valueLabel: function (value) { return value; },
-                tooltips: {
-                    callbacks: {
-                        title: function (tooltipItems) {
-                            return groupNames[tooltipItems[0].index];
-                        },
-                        label: function (tooltipItem) {
-                            var group = groups[groupNames[tooltipItem.index]];
-                            return group.below + ' of ' + group.approved + ' approved staff below 50% (' +
-                                Math.round(group.below / group.approved * 100) + '%)';
-                        },
-                        afterLabel: function (tooltipItem) {
-                            var group = groups[groupNames[tooltipItem.index]];
-                            return 'Novice: ' + group.novice + ', Minimal Competency: ' + group.minimal;
-                        }
-                    }
-                },
-                scales: {
-                    xAxes: [{
-                        barPercentage: 0.7,
-                        maxBarThickness: 60,
-                        gridLines: { display: false },
-                        ticks: { autoSkip: false, maxRotation: 0, fontSize: 10 }
-                    }],
-                    yAxes: [{
-                        ticks: { beginAtZero: true, precision: 0 }
-                    }]
-                }
-            };
-
-            if (charts.below50) {
-                charts.below50.data = chartData;
-                charts.below50.options = chartOptions;
-                charts.below50.update();
-            } else {
-                charts.below50 = new Chart(canvas.getContext('2d'), {
-                    type: 'bar',
-                    data: chartData,
-                    options: chartOptions,
-                    plugins: [scoreValueLabelPlugin]
-                });
-            }
-        }
-
-        // groups: { name: { average, count } }, average null for a group with no result.
-        // Bars are sorted highest first unless groupNames gives the order.
-        function updateScoreChart(chartKey, canvas, emptyEl, groups, groupNames) {
-            groupNames = groupNames || Object.keys(groups).sort(function (a, b) {
-                return groups[b].average - groups[a].average;
-            });
-
-            if (groupNames.length === 0) {
-                $(emptyEl).show();
-                $(canvas).hide();
-                if (charts[chartKey]) {
-                    charts[chartKey].destroy();
-                    charts[chartKey] = null;
-                }
-                return;
-            }
-            $(emptyEl).hide();
-            $(canvas).show();
-
-            var chartData = {
-                labels: groupNames.map(function (name) { return wrapChartLabel(name, 12); }),
-                datasets: [{
-                    label: 'Average Skill Score',
-                    backgroundColor: groupNames.map(function (name, index) {
-                        return SCORE_BAR_COLORS[index % SCORE_BAR_COLORS.length];
-                    }),
-                    data: groupNames.map(function (name) {
-                        return groups[name].average === null ? null : Math.round(groups[name].average * 100) / 100;
-                    })
-                }]
-            };
-            var chartOptions = {
-                maintainAspectRatio: false,
-                legend: { display: false },
-                // Room above the bars for the % labels on scores near 100%.
-                layout: { padding: { top: 20 } },
-                // chartjs-plugin-labels also draws on 'bar' charts; this chart has its own labels.
-                plugins: { labels: false },
-                tooltips: {
-                    callbacks: {
-                        title: function (tooltipItems) {
-                            return groupNames[tooltipItems[0].index];
-                        },
-                        label: function (tooltipItem) {
-                            var group = groups[groupNames[tooltipItem.index]];
-                            if (group.average === null) {
-                                return 'No result';
-                            }
-                            return 'Average: ' + group.average.toFixed(1) + '% (' + scoreLevelLabel(group.average) + ')';
-                        },
-                        afterLabel: function (tooltipItem) {
-                            var count = groups[groupNames[tooltipItem.index]].count;
-                            return count + ' approved matri' + (count == 1 ? 'x' : 'ces');
-                        }
-                    }
-                },
-                scales: {
-                    xAxes: [{
-                        barPercentage: 0.7,
-                        maxBarThickness: 60,
-                        gridLines: { display: false },
-                        ticks: { autoSkip: false, maxRotation: 0, fontSize: 10 }
-                    }],
-                    yAxes: [{
-                        ticks: {
-                            min: 0,
-                            max: 100,
-                            stepSize: 25,
-                            callback: function (value) { return value + '%'; }
-                        }
-                    }]
-                }
-            };
-
-            if (charts[chartKey]) {
-                charts[chartKey].data = chartData;
-                charts[chartKey].options = chartOptions;
-                charts[chartKey].update();
-            } else {
-                charts[chartKey] = new Chart(canvas.getContext('2d'), {
-                    type: 'bar',
-                    data: chartData,
-                    options: chartOptions,
-                    plugins: [scoreValueLabelPlugin]
-                });
-            }
-        }
-
-        function emptyStatusCounts() {
-            return { 'NOT SUBMITTED': 0, 'DRAFT': 0, 'WAITING APPROVAL': 0, 'APPROVED': 0, total: 0 };
-        }
-
-        function buildGroups(rows, keyFn) {
-            var groups = {};
-            rows.forEach(function (r) {
-                var key = (keyFn(r) || '').toString().trim() || '(Unspecified)';
-                if (!groups[key]) {
-                    groups[key] = emptyStatusCounts();
-                }
-                if (groups[key].hasOwnProperty(r.approval_status_raw)) {
-                    groups[key][r.approval_status_raw]++;
-                    groups[key].total++;
-                }
-            });
-            return groups;
-        }
-
-        function sortedGroupNames(groups) {
-            return Object.keys(groups).sort(function (a, b) {
-                return groups[b].total - groups[a].total;
-            });
-        }
-
-        function updateStackedBarChart(chartKey, canvas, emptyEl, groupNames, groups, fixedHeight) {
-            if (groupNames.length === 0) {
-                $(emptyEl).show();
-                $(canvas).hide();
-                if (charts[chartKey]) {
-                    charts[chartKey].destroy();
-                    charts[chartKey] = null;
-                }
-                return;
-            }
-            $(emptyEl).hide();
-            $(canvas).show();
-            canvas.parentElement.style.height = (fixedHeight || Math.max(140, groupNames.length * 26 + 40)) + 'px';
-
-            var datasets = STATUS_ORDER.map(function (status) {
-                return {
-                    label: status,
-                    backgroundColor: STATUS_COLORS[status],
-                    data: groupNames.map(function (name) { return groups[name][status]; })
-                };
-            });
-
-            var chartData = { labels: groupNames, datasets: datasets };
-            var chartOptions = {
-                maintainAspectRatio: false,
-                legend: { position: 'top', labels: { boxWidth: 14 } },
-                tooltips: {
-                    mode: 'index',
-                    callbacks: {
-                        label: function (tooltipItem, data) {
-                            var dataset = data.datasets[tooltipItem.datasetIndex];
-                            return dataset.label + ': ' + dataset.data[tooltipItem.index];
-                        }
-                    }
-                },
-                scales: {
-                    xAxes: [{ stacked: true, ticks: { beginAtZero: true, precision: 0 } }],
-                    yAxes: [{ stacked: true }]
-                }
-            };
-
-            if (charts[chartKey]) {
-                charts[chartKey].data = chartData;
-                charts[chartKey].options = chartOptions;
-                charts[chartKey].update();
-            } else {
-                charts[chartKey] = new Chart(canvas.getContext('2d'), {
-                    type: 'horizontalBar',
-                    data: chartData,
-                    options: chartOptions
-                });
-            }
-        }
-
         function renderDashboard(rows) {
             rows = rows || [];
             var total = rows.length;
@@ -1046,72 +716,9 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 return r.overall_score !== null && r.overall_score !== undefined && parseFloat(r.overall_score) < 50;
             }).length);
 
-            var deptGroups = buildGroups(rows, function (r) { return r.department; });
-            var sectionGroups = buildGroups(rows, function (r) { return r.section; });
-            var plantGroups = buildGroups(rows, function (r) { return r.plant; });
-
-            // ===== Main chart: Status by Department - hidden once a department is picked, =====
-            // since at that point it's showing exactly the same section
-            // breakdown as the "Status by Section" chart below, just re-titled.
+            // A department picked: the charts break it down by section instead.
             var departmentFilterActive = $('#department').val() && $('#department').val() != 'ALL';
-            $('#dashboard-chart-row').toggle(!departmentFilterActive);
-            if (!departmentFilterActive) {
-                $('#dashboard-chart-title').text('Status by Department');
-                updateStackedBarChart(
-                    'status',
-                    document.getElementById('dashboard-status-chart'),
-                    '#dashboard-empty-state',
-                    sortedGroupNames(deptGroups),
-                    deptGroups
-                );
-            }
-
-            // ===== Status by Section =====
-            updateStackedBarChart(
-                'section',
-                document.getElementById('dashboard-section-chart'),
-                '#dashboard-section-empty',
-                sortedGroupNames(sectionGroups),
-                sectionGroups
-            );
-
-            // ===== Status by Plant =====
-            updateStackedBarChart(
-                'plant',
-                document.getElementById('dashboard-plant-chart'),
-                '#dashboard-plant-empty',
-                sortedGroupNames(plantGroups),
-                plantGroups
-            );
-
-            // ===== Average Skill Score by Department, or by Section once a department is picked =====
-            $('#dashboard-score-group-title').text(departmentFilterActive ? 'Average Skill Score by Section' : 'Average Skill Score by Department');
-            updateScoreChart(
-                'scoreGroup',
-                document.getElementById('dashboard-score-group-chart'),
-                '#dashboard-score-group-empty',
-                buildScoreGroups(rows, departmentFilterActive
-                    ? function (r) { return r.section; }
-                    : function (r) { return r.department; })
-            );
-
-            // ===== Staff Below 50% by Department, or by Section once a department is picked =====
-            $('#dashboard-below50-title').text(departmentFilterActive ? 'Staff Below 50% by Section' : 'Staff Below 50% by Department');
-            updateBelow50Chart(
-                document.getElementById('dashboard-below50-chart'),
-                '#dashboard-below50-empty',
-                buildBelow50Groups(rows, departmentFilterActive
-                    ? function (r) { return r.section; }
-                    : function (r) { return r.department; })
-            );
-
-            // ===== Average Skill Score by Plant =====
-            updateScoreChart(
-                'scorePlant',
-                document.getElementById('dashboard-score-plant-chart'),
-                '#dashboard-score-plant-empty',
-                buildScoreGroups(rows, function (r) { return r.plant; })
-            );
+            renderSkillMatrixCharts(rows, !departmentFilterActive);
         }
 
         // ===== Average Skill Score by Quarter: its own request, since it spans quarters =====
@@ -1127,21 +734,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 section: $('#section').val() || 'ALL',
                 plant: $('#plant').val() || 'ALL',
                 include_off: includeOffDepartments()
-            }, function (data) {
-                var groups = {};
-                var quarterNames = [];
-                $.each(data || [], function (i, q) {
-                    groups[q.label] = { average: q.average, count: q.count };
-                    quarterNames.push(q.label);
-                });
-                updateScoreChart(
-                    'scoreQuarter',
-                    document.getElementById('dashboard-score-quarter-chart'),
-                    '#dashboard-score-quarter-empty',
-                    groups,
-                    quarterNames
-                );
-            }, 'json');
+            }, renderSkillMatrixQuarterChart, 'json');
         }
 
         skillMatrixTable.on('xhr', function (e, settings, json) {
@@ -1281,11 +874,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
         $('#view_tabs a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
             var target = $(e.target).attr('href');
             if (target == '#tab-dashboard') {
-                $.each(charts, function (key, chart) {
-                    if (chart) {
-                        chart.resize();
-                    }
-                });
+                resizeSkillMatrixCharts();
             } else {
                 skillMatrixTable.columns.adjust();
             }

@@ -2,6 +2,7 @@
 session_start();
 include "../../../dbconn.php";
 include "../../../skill_matrix_period.php";
+include "../../../skill_matrix_score.php";
 
 include_once __DIR__ . '/../../../skill_matrix_department.php';
 
@@ -63,6 +64,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                                 target.staffname AS target_staffname,
                                 target.department AS target_department,
                                 target.section AS target_section,
+                                target.plant AS target_plant,
                                 creator.staffname AS created_by_name
                             FROM skill_matrix_evaluations sme
                             INNER JOIN user target ON target.id = sme.staffid
@@ -142,6 +144,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                             u.staffname,
                             COALESCE(dp.name, u.department) AS department,
                             COALESCE(s.name, u.section) AS section,
+                            u.plant,
                             sme.id AS evaluation_id,
                             sme.approval_status,
                             creator.staffname AS created_by_name
@@ -175,6 +178,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
         $overviewResult = $overviewStmt->get_result();
 
         while ($orow = $overviewResult->fetch_assoc()) {
+            $orow['in_department'] = true;
             $staffStatus[(int) $orow['staff_id']] = $orow;
         }
     }
@@ -197,18 +201,37 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                 'staffname' => $record['target_staffname'],
                 'department' => $record['target_department'],
                 'section' => $record['target_section'],
+                'plant' => $record['target_plant'],
                 'evaluation_id' => $record['id'],
                 'approval_status' => $record['approval_status'],
                 'created_by_name' => $record['created_by_name'],
+                'in_department' => false,
             );
         }
     }
 
+    // Overall score of each approved matrix, for the Skill Score column and the dashboard.
+    $approvedEvaluationIds = array();
+    foreach ($staffStatus as $orow) {
+        if ($orow['approval_status'] == 'APPROVED') {
+            $approvedEvaluationIds[] = (int) $orow['evaluation_id'];
+        }
+    }
+    $overallScores = skillMatrixOverallScores($conn, $approvedEvaluationIds);
+    $overview['below50'] = 0;
+
     foreach ($staffStatus as $staffId => $orow) {
         $overview['total']++;
+        $staffStatus[$staffId]['overall_score'] = null;
         if ($orow['approval_status'] == 'APPROVED') {
             $overview['approved']++;
             $staffStatus[$staffId]['status'] = 'APPROVED';
+            if (isset($overallScores[(int) $orow['evaluation_id']])) {
+                $staffStatus[$staffId]['overall_score'] = $overallScores[(int) $orow['evaluation_id']];
+                if ($staffStatus[$staffId]['overall_score'] < 50) {
+                    $overview['below50']++;
+                }
+            }
         } else if ($orow['approval_status'] == 'PENDING') {
             $overview['waiting']++;
             $staffStatus[$staffId]['status'] = 'WAITING APPROVAL';
@@ -239,6 +262,33 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
     );
 
     $overviewCompletionRate = $overview['total'] > 0 ? round(($overview['approved'] / $overview['total']) * 100) : 0;
+
+    // The Dashboard tab covers only the department(s) this HOD heads. Matrices submitted
+    // to them for staff in other departments stay in the tiles and Staff List, not the charts.
+    $dashboardRows = array();
+    foreach ($staffStatus as $staff) {
+        if (!empty($staff['in_department'])) {
+            $dashboardRows[] = array(
+                'department' => $staff['department'],
+                'section' => $staff['section'],
+                'plant' => $staff['plant'],
+                'approval_status_raw' => $staff['status'],
+                'overall_score' => $staff['overall_score'],
+            );
+        }
+    }
+
+    $quarterScores = array();
+    if (count($hodDepartments) > 0) {
+        $quarterScores = skillMatrixQuarterScores(
+            $conn,
+            "u.designation IN ('NON EXECUTIVE', 'CONTRACT')
+            AND u.status != 'RESIGN'
+            AND (dp.name IN ($placeholders) OR u.department IN ($placeholders))",
+            str_repeat('s', count($hodDepartments) * 2),
+            array_merge($hodDepartments, $hodDepartments)
+        );
+    }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -251,6 +301,8 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.1/css/all.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.18/b-1.5.4/b-colvis-1.5.4/b-flash-1.5.4/b-html5-1.5.4/b-print-1.5.4/datatables.min.css"/>
     <script type="text/javascript" src="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.18/b-1.5.4/b-colvis-1.5.4/b-flash-1.5.4/b-html5-1.5.4/b-print-1.5.4/datatables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+    <script src="../../../asset/js/skill-matrix-dashboard.js"></script>
     <style>
         :root {
             --status-good: #0ca30c;
@@ -297,6 +349,100 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
         .label-draft {
             background-color: var(--status-serious);
         }
+
+        /* Overview tiles share the row equally, however many there are. */
+        .dash-tiles {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -7px;
+        }
+
+        .dash-tiles-item {
+            flex: 1 1 0;
+            min-width: 140px;
+            padding: 0 7px;
+        }
+
+        .dash-chart-scroll {
+            max-height: 320px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .dash-chart-scroll-sm {
+            max-height: 260px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .dash-score-chart {
+            position: relative;
+            height: 360px;
+        }
+
+        /* "Nothing to show" message, centred in the chart's space so the panel keeps its height. */
+        .dash-chart-empty {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            transform: translateY(-50%);
+            text-align: center;
+        }
+
+        /* Side-by-side panels in this row stretch to the same height. */
+        .dash-equal-row {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .dash-equal-row:before,
+        .dash-equal-row:after {
+            display: none;
+        }
+
+        .dash-equal-row > [class*="col-"] {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .dash-equal-row > [class*="col-"] > .panel {
+            flex: 1;
+        }
+
+        @media (max-width: 991px) {
+            .dash-equal-row > [class*="col-"] {
+                width: 100%;
+            }
+        }
+
+        .view-tabs {
+            border-bottom: none;
+        }
+
+        .view-tabs > li > a {
+            background: #f5f5f5;
+            color: #333;
+            font-weight: bold;
+            margin-right: 4px;
+        }
+
+        .view-tabs > li.active > a,
+        .view-tabs > li.active > a:hover,
+        .view-tabs > li.active > a:focus {
+            background: #fff;
+        }
+
+        .skill-score-level {
+            display: block;
+            font-size: 11px;
+            color: #777;
+        }
+
+        .skill-score-low {
+            color: #d03b3b;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body onload="startTime()" style="background-image:url('../../../asset/image/bg-try.png');zoom: 75%;">
@@ -340,11 +486,188 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
             <li<?php echo $viewingPrevious ? ' class="active"' : ''; ?>><a href="skill-matrix.php?period=previous">Previous Quarter (Q<?php echo $previousQuarter; ?> <?php echo $previousYear; ?>)</a></li>
         </ul>
 
+        <?php // The tiles sit above both tabs: they count the Staff List and clicking one filters it. ?>
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <strong>Skill Matrix Overview - Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?></strong>
+            </div>
+            <div class="panel-body">
+                <div class="dash-tiles">
+                    <div class="dash-tiles-item">
+                        <div class="dash-tile active" data-status="">
+                            <div class="dash-tile-value"><?php echo $overview['total']; ?></div>
+                            <div class="dash-tile-label">Total Staff</div>
+                        </div>
+                    </div>
+                    <div class="dash-tiles-item">
+                        <div class="dash-tile" style="border-left-color: var(--status-good);">
+                            <div class="dash-tile-value"><?php echo $overviewCompletionRate; ?>%</div>
+                            <div class="dash-tile-label">Completion Rate</div>
+                        </div>
+                    </div>
+                    <div class="dash-tiles-item">
+                        <div class="dash-tile" data-status="APPROVED" style="border-left-color: var(--status-good);">
+                            <div class="dash-tile-value"><?php echo $overview['approved']; ?></div>
+                            <div class="dash-tile-label">Approved</div>
+                        </div>
+                    </div>
+                    <div class="dash-tiles-item">
+                        <div class="dash-tile" data-status="WAITING APPROVAL" style="border-left-color: var(--status-warning);">
+                            <div class="dash-tile-value"><?php echo $overview['waiting']; ?></div>
+                            <div class="dash-tile-label">Waiting Approval</div>
+                        </div>
+                    </div>
+                    <div class="dash-tiles-item">
+                        <div class="dash-tile" data-status="DRAFT" style="border-left-color: var(--status-serious);">
+                            <div class="dash-tile-value"><?php echo $overview['draft']; ?></div>
+                            <div class="dash-tile-label">Draft</div>
+                        </div>
+                    </div>
+                    <div class="dash-tiles-item">
+                        <div class="dash-tile" data-status="NOT SUBMITTED" style="border-left-color: var(--status-critical);">
+                            <div class="dash-tile-value"><?php echo $overview['not_submitted']; ?></div>
+                            <div class="dash-tile-label">Not Submitted</div>
+                        </div>
+                    </div>
+                    <div class="dash-tiles-item">
+                        <div class="dash-tile" data-status="BELOW 50" style="border-left-color: var(--status-critical);" title="Staff whose approved skill matrix scores below 50% (Novice or Minimal Competency)">
+                            <div class="dash-tile-value"><?php echo $overview['below50']; ?></div>
+                            <div class="dash-tile-label">Score Below 50%</div>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-muted" style="margin: 0;">Click a tile to filter the Staff List by it.</p>
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs view-tabs" id="view_tabs">
+            <li class="active"><a href="#tab-dashboard" data-toggle="tab"><i class="fa fa-chart-bar"></i> Dashboard</a></li>
+            <li><a href="#tab-stafflist" data-toggle="tab"><i class="fa fa-users"></i> Staff List</a></li>
+        </ul>
+
+        <div class="tab-content">
+        <div class="tab-pane active" id="tab-dashboard">
+
+        <div class="alert alert-warning" style="padding: 8px 15px;">
+            Charts cover <strong><?php echo count($hodDepartments) > 0 ? htmlspecialchars(implode(', ', $hodDepartments)) : 'your department'; ?></strong> only.
+            Matrices submitted to you for staff in other departments are in the Staff List but not in these charts.
+        </div>
+
+        <div class="row" id="dashboard-chart-row" style="display:none;">
+            <div class="col-md-12">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong>Status by Department</strong>
+                    </div>
+                    <div class="panel-body" align="center">
+                        <div class="dash-chart-scroll">
+                            <canvas id="dashboard-status-chart"></canvas>
+                        </div>
+                        <div class="text-muted" id="dashboard-empty-state" style="display:none;text-align:center;padding:30px 0;">
+                            No staff records found.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong>Status by Section</strong>
+                    </div>
+                    <div class="panel-body" align="center">
+                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Approval status breakdown across all sections.</div>
+                        <div class="dash-chart-scroll-sm">
+                            <canvas id="dashboard-section-chart"></canvas>
+                        </div>
+                        <div class="text-muted" id="dashboard-section-empty" style="display:none;text-align:center;padding:30px 0;">
+                            No staff records found.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong>Status by Plant</strong>
+                    </div>
+                    <div class="panel-body" align="center">
+                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Approval status breakdown across all plants.</div>
+                        <div class="dash-chart-scroll-sm">
+                            <canvas id="dashboard-plant-chart"></canvas>
+                        </div>
+                        <div class="text-muted" id="dashboard-plant-empty" style="display:none;text-align:center;padding:30px 0;">
+                            No staff records found.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong id="dashboard-score-group-title">Average Skill Score by Section</strong>
+                    </div>
+                    <div class="panel-body" align="center">
+                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage. Approved matrices only.</div>
+                        <div class="dash-score-chart">
+                            <canvas id="dashboard-score-group-chart"></canvas>
+                            <div class="text-muted dash-chart-empty" id="dashboard-score-group-empty" style="display:none;">
+                                No approved skill matrix yet.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row dash-equal-row">
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong id="dashboard-below50-title">Staff Below 50% by Section</strong>
+                    </div>
+                    <div class="panel-body" align="center">
+                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Number of staff whose skill matrix scores below 50% (Novice or Minimal Competency). Approved matrices only.</div>
+                        <div class="dash-score-chart">
+                            <canvas id="dashboard-below50-chart"></canvas>
+                            <div class="text-muted dash-chart-empty" id="dashboard-below50-empty" style="display:none;">
+                                No staff below 50%.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <strong>Average Skill Score by Quarter</strong>
+                    </div>
+                    <div class="panel-body" align="center">
+                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage for each quarter, up to the last 8. Approved matrices only. Not affected by the quarter selected above.</div>
+                        <div class="dash-score-chart">
+                            <canvas id="dashboard-score-quarter-chart"></canvas>
+                            <div class="text-muted dash-chart-empty" id="dashboard-score-quarter-empty" style="display:none;">
+                                No approved skill matrix yet.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        </div>
+        <div class="tab-pane" id="tab-stafflist">
+
         <div class="panel panel-default">
             <div class="panel-heading">
                 <div class="row">
                     <div class="col-md-4" style="margin-top: 10px;">
-                        <strong>Skill Matrix - Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?></strong>
+                        <strong>Staff List - Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?></strong>
                     </div>
                     <div class="col-md-8" align="right">
                         <a href="matrix-chart.php<?php echo $viewingPrevious ? '?' . $periodQuery : ''; ?>" class="btn btn-info btn-md">
@@ -363,49 +686,9 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                 </div>
             </div>
             <div class="panel-body">
-                <div class="row">
-                    <div class="col-md-2 col-sm-4 col-xs-6">
-                        <div class="dash-tile active" data-status="">
-                            <div class="dash-tile-value"><?php echo $overview['total']; ?></div>
-                            <div class="dash-tile-label">Total Staff</div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 col-sm-4 col-xs-6">
-                        <div class="dash-tile" style="border-left-color: var(--status-good);">
-                            <div class="dash-tile-value"><?php echo $overviewCompletionRate; ?>%</div>
-                            <div class="dash-tile-label">Completion Rate</div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 col-sm-4 col-xs-6">
-                        <div class="dash-tile" data-status="APPROVED" style="border-left-color: var(--status-good);">
-                            <div class="dash-tile-value"><?php echo $overview['approved']; ?></div>
-                            <div class="dash-tile-label">Approved</div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 col-sm-4 col-xs-6">
-                        <div class="dash-tile" data-status="WAITING APPROVAL" style="border-left-color: var(--status-warning);">
-                            <div class="dash-tile-value"><?php echo $overview['waiting']; ?></div>
-                            <div class="dash-tile-label">Waiting Approval</div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 col-sm-4 col-xs-6">
-                        <div class="dash-tile" data-status="DRAFT" style="border-left-color: var(--status-serious);">
-                            <div class="dash-tile-value"><?php echo $overview['draft']; ?></div>
-                            <div class="dash-tile-label">Draft</div>
-                        </div>
-                    </div>
-                    <div class="col-md-2 col-sm-4 col-xs-6">
-                        <div class="dash-tile" data-status="NOT SUBMITTED" style="border-left-color: var(--status-critical);">
-                            <div class="dash-tile-value"><?php echo $overview['not_submitted']; ?></div>
-                            <div class="dash-tile-label">Not Submitted</div>
-                        </div>
-                    </div>
-                </div>
-
                 <?php if (count($staffStatus) == 0) { ?>
                     <div class="alert alert-info">No staff found in your department, and no skill matrix has been submitted to you for Q<?php echo $currentQuarter; ?> <?php echo $currentYear; ?>.</div>
                 <?php } else { ?>
-                    <p class="text-muted">Click a tile above to filter the list by status.</p>
                     <div class="table-responsive">
                         <table id="staffStatusTable" class="table table-bordered table-striped">
                             <thead>
@@ -420,6 +703,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                                     <th>Section</th>
                                     <th>Filled By</th>
                                     <th>Status</th>
+                                    <th>Skill Score</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -439,6 +723,15 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                                         <td><?php echo $staff['created_by_name'] !== null ? htmlspecialchars($staff['created_by_name']) : '-'; ?></td>
                                         <?php // Kept on one line: the tile filter matches this cell's text exactly. ?>
                                         <td class="text-center"><span class="label <?php echo $statusLabelClass[$staff['status']]; ?>"><?php echo $staff['status']; ?></span></td>
+                                        <?php // Approved matrices only; sorts by the number, staff without one last. ?>
+                                        <td class="text-center" data-order="<?php echo $staff['overall_score'] === null ? -1 : $staff['overall_score']; ?>">
+                                            <?php if ($staff['overall_score'] === null) { ?>
+                                                <span class="text-muted">-</span>
+                                            <?php } else { ?>
+                                                <span class="<?php echo $staff['overall_score'] < 50 ? 'skill-score-low' : ''; ?>"><?php echo number_format($staff['overall_score'], 1); ?>%</span>
+                                                <span class="skill-score-level"><?php echo skillMatrixScoreLevel($staff['overall_score']); ?></span>
+                                            <?php } ?>
+                                        </td>
                                         <td class="text-center">
                                             <?php if ($staff['evaluation_id'] !== null && isset($viewableIds[(int) $staff['evaluation_id']])) { ?>
                                                 <a href="evaluation-matrix.php?evaluation_id=<?php echo (int) $staff['evaluation_id']; ?><?php echo $viewingPrevious ? '&amp;' . $periodQuery : ''; ?>" class="btn btn-info btn-sm">
@@ -453,6 +746,9 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                     </div>
                 <?php } ?>
             </div>
+        </div>
+
+        </div>
         </div>
 
     </div>
@@ -487,18 +783,56 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
             "pageLength": 10,
             "order": [],
             "columnDefs": [
-                { className: 'text-center', targets: [0, 1, 7, 8] },
+                { className: 'text-center', targets: [0, 1, 7, 8, 9] },
                 { orderable: false, searchable: false, targets: [0] },
-                { orderable: false, targets: [8] }
+                { orderable: false, targets: [9] }
             ]
+        });
+
+        // The "Score Below 50%" tile filters on the Skill Score column rather than Status.
+        var below50Only = false;
+        $.fn.dataTable.ext.search.push(function (settings, data) {
+            if (!below50Only || settings.nTable.id !== 'staffStatusTable') {
+                return true;
+            }
+            var score = parseFloat(data[8]);
+            return !isNaN(score) && score < 50;
         });
 
         $('.dash-tile[data-status]').on('click', function () {
             var status = $(this).data('status');
             $('.dash-tile[data-status]').removeClass('active');
             $(this).addClass('active');
-            staffStatusTable.column(7).search(status ? '^' + status + '$' : '', true, false).draw();
+            below50Only = status == 'BELOW 50';
+            staffStatusTable.column(7).search(status && !below50Only ? '^' + status + '$' : '', true, false).draw();
+            $('#view_tabs a[href="#tab-stafflist"]').tab('show');
         });
+
+        // ===== Dashboard tab: this HOD's department(s) only =====
+        renderSkillMatrixCharts(<?php echo json_encode($dashboardRows, JSON_HEX_TAG | JSON_HEX_AMP); ?>, <?php echo count($hodDepartments) > 1 ? 'true' : 'false'; ?>);
+        renderSkillMatrixQuarterChart(<?php echo json_encode($quarterScores, JSON_HEX_TAG | JSON_HEX_AMP); ?>);
+
+        // Charts and the table drawn while their tab is hidden have no width, so
+        // resize them once their tab is shown.
+        $('#view_tabs a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+            var target = $(e.target).attr('href');
+            if (target == '#tab-dashboard') {
+                resizeSkillMatrixCharts();
+            } else {
+                staffStatusTable.columns.adjust();
+            }
+            try {
+                sessionStorage.setItem('hodSkillMatrixViewTab', target);
+            } catch (err) { }
+        });
+
+        // Reopen the last tab used, e.g. after approving or switching quarter.
+        try {
+            var lastViewTab = sessionStorage.getItem('hodSkillMatrixViewTab');
+            if (lastViewTab) {
+                $('#view_tabs a[href="' + lastViewTab + '"]').tab('show');
+            }
+        } catch (err) { }
 
         // ===== Approve selected / all pending =====
         // Ticks live on every page of the table, so they are read through the
