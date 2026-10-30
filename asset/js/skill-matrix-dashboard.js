@@ -19,13 +19,9 @@ var SCORE_LEVELS = [
     { min: 25, label: 'Novice' },
     { min: 0, label: 'Minimal Competency' }
 ];
-// One colour per bar, cycled when there are more bars than colours.
-var SCORE_BAR_COLORS = [
-    '#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2',
-    '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac',
-    '#1f77b4', '#17becf', '#8c564b', '#bcbd22', '#7f7f7f',
-    '#2ca02c', '#9467bd', '#d62728', '#ff7f0e', '#e377c2'
-];
+// Score bars are one colour; only averages below 50% stand out.
+var SCORE_BAR_COLOR = '#2a78d6';  // same blue as admin/tna/tna_summary.php
+var SCORE_BAR_LOW_COLOR = '#d03b3b';
 
 // Splits a long name over several lines so the x-axis labels stay readable.
 function wrapChartLabel(text, maxChars) {
@@ -150,9 +146,7 @@ function updateBelow50Chart(canvas, emptyEl, groups) {
         labels: groupNames.map(function (name) { return wrapChartLabel(name, 12); }),
         datasets: [{
             label: 'Staff Below 50%',
-            backgroundColor: groupNames.map(function (name, index) {
-                return SCORE_BAR_COLORS[index % SCORE_BAR_COLORS.length];
-            }),
+            backgroundColor: SCORE_BAR_LOW_COLOR,
             data: groupNames.map(function (name) { return groups[name].below; })
         }]
     };
@@ -232,8 +226,9 @@ function updateScoreChart(chartKey, canvas, emptyEl, groups, groupNames) {
         labels: groupNames.map(function (name) { return wrapChartLabel(name, 12); }),
         datasets: [{
             label: 'Average Skill Score',
-            backgroundColor: groupNames.map(function (name, index) {
-                return SCORE_BAR_COLORS[index % SCORE_BAR_COLORS.length];
+            backgroundColor: groupNames.map(function (name) {
+                var average = groups[name].average;
+                return average !== null && average < 50 ? SCORE_BAR_LOW_COLOR : SCORE_BAR_COLOR;
             }),
             data: groupNames.map(function (name) {
                 return groups[name].average === null ? null : Math.round(groups[name].average * 100) / 100;

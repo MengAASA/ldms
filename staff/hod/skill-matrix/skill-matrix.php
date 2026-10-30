@@ -302,7 +302,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.18/b-1.5.4/b-colvis-1.5.4/b-flash-1.5.4/b-html5-1.5.4/b-print-1.5.4/datatables.min.css"/>
     <script type="text/javascript" src="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.18/b-1.5.4/b-colvis-1.5.4/b-flash-1.5.4/b-html5-1.5.4/b-print-1.5.4/datatables.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
-    <script src="../../../asset/js/skill-matrix-dashboard.js"></script>
+    <script src="../../../asset/js/skill-matrix-dashboard.js?v=<?php echo filemtime(__DIR__ . "/../../../asset/js/skill-matrix-dashboard.js"); ?>"></script>
     <style>
         :root {
             --status-good: #0ca30c;
@@ -613,7 +613,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                         <strong id="dashboard-score-group-title">Average Skill Score by Section</strong>
                     </div>
                     <div class="panel-body" align="center">
-                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage. Approved matrices only.</div>
+                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage. Approved matrices only. Red bars average below 50%.</div>
                         <div class="dash-score-chart">
                             <canvas id="dashboard-score-group-chart"></canvas>
                             <div class="text-muted dash-chart-empty" id="dashboard-score-group-empty" style="display:none;">
@@ -648,7 +648,7 @@ if (isset($_SESSION['fullname']) && canApproveSkillMatrix()) {
                         <strong>Average Skill Score by Quarter</strong>
                     </div>
                     <div class="panel-body" align="center">
-                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage for each quarter, up to the last 8. Approved matrices only. Not affected by the quarter selected above.</div>
+                        <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Average overall skill matrix percentage for each quarter, up to the last 8. Approved matrices only. Red bars average below 50%. Not affected by the quarter selected above.</div>
                         <div class="dash-score-chart">
                             <canvas id="dashboard-score-quarter-chart"></canvas>
                             <div class="text-muted dash-chart-empty" id="dashboard-score-quarter-empty" style="display:none;">
