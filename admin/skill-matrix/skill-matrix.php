@@ -631,6 +631,10 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
         // Which tab the staff table is showing: the evaluation quarter or the one before it.
         var skillMatrixPeriod = /[?&]period=previous(&|$)/.test(window.location.search) ? 'previous' : 'current';
 
+        // The filter of the staff table's last request, which the overview tiles pass on. Declared
+        // before the table, whose first request runs while it is set up.
+        var dashboardFilter = null;
+
         var skillMatrixTable = $('#skillmatrixlist').DataTable({
             "paging": true,
             "lengthChange": true,
@@ -762,7 +766,6 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
         }
 
         // ===== Overview tiles open skill-matrix-breakdown.php for the filter the dashboard is showing =====
-        var dashboardFilter = null;
 
         function updateTileLinks() {
             if (!dashboardFilter) {

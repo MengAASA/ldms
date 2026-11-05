@@ -122,7 +122,8 @@ function buildBelow50Groups(rows, keyFn) {
     return groups;
 }
 
-function updateBelow50Chart(canvas, emptyEl, groups) {
+function updateBelow50Chart(canvas, emptyEl, groups, chartKey) {
+    chartKey = chartKey || 'below50';
     if (!canvas) {
         return;
     }
@@ -133,9 +134,9 @@ function updateBelow50Chart(canvas, emptyEl, groups) {
     if (groupNames.length === 0) {
         $(emptyEl).show();
         $(canvas).hide();
-        if (skillMatrixCharts.below50) {
-            skillMatrixCharts.below50.destroy();
-            skillMatrixCharts.below50 = null;
+        if (skillMatrixCharts[chartKey]) {
+            skillMatrixCharts[chartKey].destroy();
+            skillMatrixCharts[chartKey] = null;
         }
         return;
     }
@@ -185,12 +186,12 @@ function updateBelow50Chart(canvas, emptyEl, groups) {
         }
     };
 
-    if (skillMatrixCharts.below50) {
-        skillMatrixCharts.below50.data = chartData;
-        skillMatrixCharts.below50.options = chartOptions;
-        skillMatrixCharts.below50.update();
+    if (skillMatrixCharts[chartKey]) {
+        skillMatrixCharts[chartKey].data = chartData;
+        skillMatrixCharts[chartKey].options = chartOptions;
+        skillMatrixCharts[chartKey].update();
     } else {
-        skillMatrixCharts.below50 = new Chart(canvas.getContext('2d'), {
+        skillMatrixCharts[chartKey] = new Chart(canvas.getContext('2d'), {
             type: 'bar',
             data: chartData,
             options: chartOptions,
@@ -374,26 +375,34 @@ function updateStackedBarChart(chartKey, canvas, emptyEl, groupNames, groups, fi
     }
 }
 
+// Chart instance key: the plain name for the main dashboard, prefixed for any other set.
+function skillMatrixChartKey(prefix, name) {
+    return prefix == 'dashboard' ? name : prefix + ':' + name;
+}
+
 // Draws every chart except the quarter one. rows: one per staff with department,
 // section, plant, approval_status_raw and overall_score (null unless approved).
 // byDepartment false means a single department is in view: the skillMatrixCharts group by
 // section and the Status by Department row is hidden, since it would only repeat
 // the Status by Section chart.
-function renderSkillMatrixCharts(rows, byDepartment) {
+// prefix: the element ids' start, 'dashboard' unless the page has a second set of charts.
+function renderSkillMatrixCharts(rows, byDepartment, prefix) {
     rows = rows || [];
+    prefix = prefix || 'dashboard';
+    var key = function (name) { return skillMatrixChartKey(prefix, name); };
     var groupKey = byDepartment
         ? function (r) { return r.department; }
         : function (r) { return r.section; };
     var groupLabel = byDepartment ? 'Department' : 'Section';
 
     // ===== Status by Department =====
-    $('#dashboard-chart-row').toggle(byDepartment);
+    $('#' + prefix + '-chart-row').toggle(byDepartment);
     if (byDepartment) {
         var deptGroups = buildGroups(rows, function (r) { return r.department; });
         updateStackedBarChart(
-            'status',
-            document.getElementById('dashboard-status-chart'),
-            '#dashboard-empty-state',
+            key('status'),
+            document.getElementById(prefix + '-status-chart'),
+            '#' + prefix + '-empty-state',
             sortedGroupNames(deptGroups),
             deptGroups
         );
@@ -402,9 +411,9 @@ function renderSkillMatrixCharts(rows, byDepartment) {
     // ===== Status by Section =====
     var sectionGroups = buildGroups(rows, function (r) { return r.section; });
     updateStackedBarChart(
-        'section',
-        document.getElementById('dashboard-section-chart'),
-        '#dashboard-section-empty',
+        key('section'),
+        document.getElementById(prefix + '-section-chart'),
+        '#' + prefix + '-section-empty',
         sortedGroupNames(sectionGroups),
         sectionGroups
     );
@@ -412,35 +421,36 @@ function renderSkillMatrixCharts(rows, byDepartment) {
     // ===== Status by Plant =====
     var plantGroups = buildGroups(rows, function (r) { return r.plant; });
     updateStackedBarChart(
-        'plant',
-        document.getElementById('dashboard-plant-chart'),
-        '#dashboard-plant-empty',
+        key('plant'),
+        document.getElementById(prefix + '-plant-chart'),
+        '#' + prefix + '-plant-empty',
         sortedGroupNames(plantGroups),
         plantGroups
     );
 
     // ===== Average Skill Score by Department / Section =====
-    $('#dashboard-score-group-title').text('Average Skill Score by ' + groupLabel);
+    $('#' + prefix + '-score-group-title').text('Average Skill Score by ' + groupLabel);
     updateScoreChart(
-        'scoreGroup',
-        document.getElementById('dashboard-score-group-chart'),
-        '#dashboard-score-group-empty',
+        key('scoreGroup'),
+        document.getElementById(prefix + '-score-group-chart'),
+        '#' + prefix + '-score-group-empty',
         buildScoreGroups(rows, groupKey)
     );
 
     // ===== Staff Below 50% by Department / Section =====
-    $('#dashboard-below50-title').text('Staff Below 50% by ' + groupLabel);
+    $('#' + prefix + '-below50-title').text('Staff Below 50% by ' + groupLabel);
     updateBelow50Chart(
-        document.getElementById('dashboard-below50-chart'),
-        '#dashboard-below50-empty',
-        buildBelow50Groups(rows, groupKey)
+        document.getElementById(prefix + '-below50-chart'),
+        '#' + prefix + '-below50-empty',
+        buildBelow50Groups(rows, groupKey),
+        key('below50')
     );
 
     // ===== Average Skill Score by Plant =====
     updateScoreChart(
-        'scorePlant',
-        document.getElementById('dashboard-score-plant-chart'),
-        '#dashboard-score-plant-empty',
+        key('scorePlant'),
+        document.getElementById(prefix + '-score-plant-chart'),
+        '#' + prefix + '-score-plant-empty',
         buildScoreGroups(rows, function (r) { return r.plant; })
     );
 }
@@ -448,7 +458,8 @@ function renderSkillMatrixCharts(rows, byDepartment) {
 // ===== Average Skill Score by Quarter =====
 // quarters: [{ label, average, count }] in time order, average null for a quarter
 // with nothing approved.
-function renderSkillMatrixQuarterChart(quarters) {
+function renderSkillMatrixQuarterChart(quarters, prefix) {
+    prefix = prefix || 'dashboard';
     var groups = {};
     var quarterNames = [];
     $.each(quarters || [], function (i, q) {
@@ -456,9 +467,9 @@ function renderSkillMatrixQuarterChart(quarters) {
         quarterNames.push(q.label);
     });
     updateScoreChart(
-        'scoreQuarter',
-        document.getElementById('dashboard-score-quarter-chart'),
-        '#dashboard-score-quarter-empty',
+        skillMatrixChartKey(prefix, 'scoreQuarter'),
+        document.getElementById(prefix + '-score-quarter-chart'),
+        '#' + prefix + '-score-quarter-empty',
         groups,
         quarterNames
     );
