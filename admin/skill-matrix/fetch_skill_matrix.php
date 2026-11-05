@@ -137,6 +137,19 @@ if ($_POST["action"] == "load_departments") {
     skillMatrixRespondJson(array('options' => $options));
 }
 
+if ($_POST["action"] == "load_department_hods") {
+    // {department name: head of department's name} from Organization, for the
+    // Skill Matrix Status (by Department) table on the dashboard.
+    $hods = array();
+    $result = $conn->query("SELECT TRIM(dp.name) AS name, u.staffname
+            FROM departments dp
+            LEFT JOIN user u ON u.id = dp.hod_user_id");
+    while ($row = $result->fetch_assoc()) {
+        $hods[$row['name']] = $row['staffname'] ? $row['staffname'] : '';
+    }
+    skillMatrixRespondJson((object) $hods);
+}
+
 if ($_POST["action"] == "load_sections_by_department") {
     $department = isset($_POST["department"]) ? $_POST["department"] : "ALL";
 

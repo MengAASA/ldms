@@ -140,6 +140,12 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 text-align: center;
             }
 
+            /* Submission / Status tables: Export Excel beside "Show entries". */
+            #submissionlist_wrapper .dt-buttons,
+            #smstatuslist_wrapper .dt-buttons {
+                margin-left: 12px;
+            }
+
             /* Side-by-side panels in this row stretch to the same height. */
             .dash-equal-row {
                 display: flex;
@@ -419,6 +425,55 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                                     </a>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Same layout as TNA Submission / TNA Status (by Department) on admin/tna/tna_summary.php -->
+            <div class="row dash-equal-row">
+                <div class="col-md-6">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <strong>Skill Matrix Submission (by Department)</strong>
+                        </div>
+                        <div class="panel-body">
+                            <div class="text-muted" style="font-size:11px;margin-bottom:8px;">Submitted = Approved + Waiting Approval. Click a department to see its staff by section.</div>
+                            <table id="submissionlist" class="table table-bordered table-striped" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>No.</th>
+                                        <th>Department</th>
+                                        <th>Submitted</th>
+                                        <th>Draft</th>
+                                        <th>Not Submitted</th>
+                                        <th>Staff</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <strong>Skill Matrix Status (by Department)</strong>
+                        </div>
+                        <div class="panel-body">
+                            <div class="text-muted" style="font-size:11px;margin-bottom:8px;">COMPLETED once every staff member's matrix is approved; WAITING APPROVAL once all are submitted; otherwise PENDING.</div>
+                            <table id="smstatuslist" class="table table-bordered table-striped" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>No.</th>
+                                        <th>Department</th>
+                                        <th>Head of Department</th>
+                                        <th>Submitted / Staff</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -763,6 +818,147 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             // A department picked: the charts break it down by section instead.
             var departmentFilterActive = $('#department').val() && $('#department').val() != 'ALL';
             renderSkillMatrixCharts(rows, !departmentFilterActive);
+            renderSubmissionTables(rows);
+        }
+
+        // ===== Skill Matrix Submission (by Department) and Skill Matrix Status
+        // (by Department): the TNA Summary page's two tables, for the staff the dashboard shows =====
+        var departmentHods = $.post('fetch_skill_matrix.php', { action: 'load_department_hods' }, null, 'json');
+        var submissionTable = null;
+        var smStatusTable = null;
+
+        function smEscape(text) {
+            return $('<div>').text(text === null || text === undefined ? '' : text).html();
+        }
+
+        function smGroupName(value) {
+            return (value || '').toString().trim() || '(Unspecified)';
+        }
+
+        function smExcelButton(title) {
+            return [{
+                extend: 'excelHtml5',
+                text: '<i class="fa fa-file-excel"></i> Export Excel',
+                className: 'btn btn-success btn-xs',
+                exportOptions: { columns: ':gt(0)' },
+                title: function () {
+                    return title + ' - ' + $.trim($('#period_tabs li.active a').text());
+                }
+            }];
+        }
+
+        function smDepartmentLink(department) {
+            var params = $.extend({ tile: 'total' }, dashboardFilter || {}, { department: department });
+            return '<a href="skill-matrix-breakdown.php?' + smEscape($.param(params)) + '" title="Show staff by section">' + smEscape(department) + '</a>';
+        }
+
+        function renderSubmissionTables(rows) {
+            var byDepartment = {};
+            rows.forEach(function (r) {
+                var department = smGroupName(r.department);
+                if (!byDepartment[department]) {
+                    byDepartment[department] = { department: department, submitted: 0, approved: 0, draft: 0, notsubmitted: 0, staff: 0 };
+                }
+                var group = byDepartment[department];
+                var status = r.approval_status_raw;
+                group.staff++;
+                group.submitted += status == 'APPROVED' || status == 'WAITING APPROVAL' ? 1 : 0;
+                group.approved += status == 'APPROVED' ? 1 : 0;
+                group.draft += status == 'DRAFT' ? 1 : 0;
+                group.notsubmitted += status == 'NOT SUBMITTED' ? 1 : 0;
+            });
+            var departmentRows = $.map(byDepartment, function (row) { return row; });
+
+            if (!submissionTable) {
+                submissionTable = $('#submissionlist').DataTable({
+                    data: [],
+                    pageLength: 15,
+                    lengthMenu: [15, 25, 50, 100],
+                    autoWidth: false,
+                    order: [[1, 'asc']],
+                    dom: 'lBfrtip',
+                    buttons: smExcelButton('Skill Matrix Submission (by Department)'),
+                    columns: [
+                        { data: null, orderable: false, searchable: false, defaultContent: '' },
+                        {
+                            data: 'department',
+                            render: function (department, type) {
+                                return type == 'display' ? smDepartmentLink(department) : department;
+                            }
+                        },
+                        { data: 'submitted', className: 'text-center' },
+                        { data: 'draft', className: 'text-center' },
+                        {
+                            data: 'notsubmitted',
+                            className: 'text-center',
+                            render: function (value, type) {
+                                return type == 'display' && value > 0 ? '<strong class="text-danger">' + value + '</strong>' : value;
+                            }
+                        },
+                        { data: 'staff', className: 'text-center' }
+                    ],
+                    drawCallback: function () {
+                        var api = this.api();
+                        var start = api.page.info().start;
+                        api.column(0, { search: 'applied', order: 'applied', page: 'current' }).nodes().each(function (cell, i) {
+                            cell.innerHTML = start + i + 1;
+                        });
+                    }
+                });
+            }
+            submissionTable.clear().rows.add(departmentRows).draw();
+
+            departmentHods.done(function (hods) {
+                hods = hods || {};
+                departmentRows.forEach(function (row) {
+                    row.hod = hods[row.department] || '-';
+                });
+                if (!smStatusTable) {
+                    smStatusTable = $('#smstatuslist').DataTable({
+                        data: [],
+                        pageLength: 15,
+                        lengthMenu: [15, 25, 50, 100],
+                        autoWidth: false,
+                        order: [[1, 'asc']],
+                        dom: 'lBfrtip',
+                        buttons: smExcelButton('Skill Matrix Status (by Department)'),
+                        columns: [
+                            { data: null, orderable: false, searchable: false, defaultContent: '' },
+                            { data: 'department' },
+                            { data: 'hod' },
+                            {
+                                data: 'submitted',
+                                // Sort by share submitted, not by the "x / y" text.
+                                render: function (value, type, row) {
+                                    if (type === 'sort' || type === 'type') {
+                                        return row.staff > 0 ? row.submitted / row.staff : -1;
+                                    }
+                                    return row.submitted + ' / ' + row.staff;
+                                }
+                            },
+                            {
+                                data: null,
+                                render: function (value, type, row) {
+                                    var status = row.approved == row.staff ? 'COMPLETED' : (row.submitted == row.staff ? 'WAITING APPROVAL' : 'PENDING');
+                                    if (type !== 'display') {
+                                        return status;
+                                    }
+                                    var label = status == 'COMPLETED' ? 'label-success' : (status == 'WAITING APPROVAL' ? 'label-info' : 'label-warning');
+                                    return '<span class="label label-pill ' + label + '">' + status + '</span>';
+                                }
+                            }
+                        ],
+                        drawCallback: function () {
+                            var api = this.api();
+                            var start = api.page.info().start;
+                            api.column(0, { search: 'applied', order: 'applied', page: 'current' }).nodes().each(function (cell, i) {
+                                cell.innerHTML = start + i + 1;
+                            });
+                        }
+                    });
+                }
+                smStatusTable.clear().rows.add(departmentRows).draw();
+            });
         }
 
         // ===== Overview tiles open skill-matrix-breakdown.php for the filter the dashboard is showing =====
@@ -930,6 +1126,12 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             var target = $(e.target).attr('href');
             if (target == '#tab-dashboard') {
                 resizeSkillMatrixCharts();
+                if (submissionTable) {
+                    submissionTable.columns.adjust();
+                }
+                if (smStatusTable) {
+                    smStatusTable.columns.adjust();
+                }
             } else {
                 skillMatrixTable.columns.adjust();
             }

@@ -474,10 +474,15 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
             <div class="modal-body" style="padding-bottom:0;">
                 <input type="hidden" id="transfer-from-dept-id">
                 <div class="row" style="margin-bottom:10px;">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <input type="text" id="transfer-staff-search" class="form-control input-sm" placeholder="Search by name or staff no...">
                     </div>
-                    <div class="col-md-6" style="text-align:right;padding-top:4px;">
+                    <div class="col-md-3">
+                        <select id="transfer-section-filter" class="form-control input-sm" title="Filter by current section">
+                            <option value="">All sections</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5" style="text-align:right;padding-top:4px;">
                         <button class="btn btn-xs btn-default" onclick="toggleSelectAll(true)">Select All</button>
                         <button class="btn btn-xs btn-default" onclick="toggleSelectAll(false)">Deselect All</button>
                         <span id="selected-count-label" class="text-muted" style="font-size:12px;margin-left:8px;">0 selected</span>
@@ -1059,6 +1064,7 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
         $('#transfer-from-dept-id').val(deptId);
         $('#transfer-dept-name-label').text(deptName);
         $('#transfer-staff-search').val('');
+        $('#transfer-section-filter').html('<option value="">All sections</option>');
         $('#selected-count-label').text('0 selected');
         $('#transfer-staff-tbody').html('<tr><td colspan="5" class="text-center text-muted"><i class="fa fa-spinner fa-spin"></i> Loading staff...</td></tr>');
         $('#transfer-target-section').html('<option value="">— No specific section —</option>');
@@ -1088,9 +1094,22 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
             $('#transfer-staff-tbody').html('<tr><td colspan="5" class="text-center text-muted">No active staff in this department.</td></tr>');
             return;
         }
+        // Section filter options come from the sections these staff are in now.
+        var sections = {}, hasBlank = false;
+        $.each(data, function (i, row) {
+            var s = $.trim(row.section_name || '');
+            if (s) sections[s] = true; else hasBlank = true;
+        });
+        var opts = '<option value="">All sections</option>';
+        $.each(Object.keys(sections).sort(), function (i, s) {
+            opts += '<option value="' + escHtml(s) + '">' + escHtml(s) + '</option>';
+        });
+        if (hasBlank) opts += '<option value="__none__">(No section)</option>';
+        $('#transfer-section-filter').html(opts);
+
         var html = '';
         $.each(data, function (i, row) {
-            html += '<tr class="transfer-staff-row" data-name="' + escHtml((row.staffname || '').toLowerCase()) + '" data-staffno="' + escHtml((row.staffno || '').toLowerCase()) + '">';
+            html += '<tr class="transfer-staff-row" data-name="' + escHtml((row.staffname || '').toLowerCase()) + '" data-staffno="' + escHtml((row.staffno || '').toLowerCase()) + '" data-section="' + escHtml($.trim(row.section_name || '')) + '">';
             html += '<td><input type="checkbox" class="transfer-chk" value="' + row.id + '" onchange="updateSelectedCount()"></td>';
             html += '<td>' + escHtml(row.staffno) + '</td>';
             html += '<td>' + escHtml(row.staffname) + '</td>';
@@ -1111,14 +1130,22 @@ if (!isset($_SESSION['fullname']) || $_SESSION['role'] != 'ADMIN') {
         $('#selected-count-label').text(count + ' selected');
     }
 
-    $('#transfer-staff-search').on('keyup', function () {
-        var q = $.trim($(this).val()).toLowerCase();
+    // Search and section filter work together; Select All only ticks visible rows.
+    function applyTransferFilter() {
+        var q = $.trim($('#transfer-staff-search').val()).toLowerCase();
+        var sec = $('#transfer-section-filter').val();
         $('.transfer-staff-row').each(function () {
-            var name = $(this).data('name') || '';
-            var staffno = $(this).data('staffno') || '';
-            $(this).toggle(!q || name.indexOf(q) > -1 || staffno.indexOf(q) > -1);
+            var name = String($(this).attr('data-name') || '');
+            var staffno = String($(this).attr('data-staffno') || '');
+            var rowSec = String($(this).attr('data-section') || '');
+            var matchQ = !q || name.indexOf(q) > -1 || staffno.indexOf(q) > -1;
+            var matchSec = !sec || (sec === '__none__' ? rowSec === '' : rowSec === sec);
+            $(this).toggle(matchQ && matchSec);
         });
-    });
+    }
+
+    $('#transfer-staff-search').on('keyup', applyTransferFilter);
+    $('#transfer-section-filter').on('change', applyTransferFilter);
 
     function onTransferDeptChange() {
         var deptId = $('#transfer-target-dept').val();
