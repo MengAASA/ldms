@@ -585,7 +585,10 @@ if (isset($_SESSION['fullname']) && $canViewSkillMatrix) {
         });
 
         // The quarter chart spans every quarter, so it is loaded once, not per quarter tab.
-        $.post("fetch_skill_matrix.php", { action: "load_quarter_scores" }, renderSkillMatrixQuarterChart, 'json');
+        $.post("fetch_skill_matrix.php", { action: "load_quarter_scores" }, function (quarters) {
+            // Wrapped: jQuery would pass its "success" status as the chart prefix.
+            renderSkillMatrixQuarterChart(quarters);
+        }, 'json');
 
         // The Matrix Chart button opens the chart on the same quarter tab.
         function syncMatrixChartLink() {

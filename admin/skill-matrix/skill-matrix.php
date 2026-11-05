@@ -985,7 +985,10 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 section: $('#section').val() || 'ALL',
                 plant: $('#plant').val() || 'ALL',
                 include_off: includeOffDepartments()
-            }, renderSkillMatrixQuarterChart, 'json');
+            }, function (quarters) {
+                // Wrapped: jQuery would pass its "success" status as the chart prefix.
+                renderSkillMatrixQuarterChart(quarters);
+            }, 'json');
         }
 
         skillMatrixTable.on('xhr', function (e, settings, json) {
