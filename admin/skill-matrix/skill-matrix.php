@@ -90,16 +90,20 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 margin-top: 4px;
             }
 
-            /* Overview tiles open a breakdown modal when clicked. */
-            .dash-tile-link {
+            /* Overview tiles link to skill-matrix-breakdown.php. */
+            a.dash-tile-link {
+                display: block;
+                color: inherit;
+                text-decoration: none;
                 cursor: pointer;
                 transition: box-shadow 0.15s, background 0.15s;
             }
 
-            .dash-tile-link:hover,
-            .dash-tile-link:focus {
+            a.dash-tile-link:hover,
+            a.dash-tile-link:focus {
                 background: #fff;
                 box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+                text-decoration: none;
                 outline: none;
             }
 
@@ -107,48 +111,6 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                 font-size: 10px;
                 color: #2a78d6;
                 margin-top: 4px;
-            }
-
-            #breakdown_modal .modal-dialog {
-                width: 90%;
-                max-width: 1300px;
-            }
-
-            #breakdown_body th:not(.text-center) {
-                text-align: left;
-            }
-
-            #breakdown_body .breakdown-group-row {
-                cursor: pointer;
-            }
-
-            #breakdown_body .breakdown-group-row > td:first-child {
-                white-space: nowrap;
-            }
-
-            /* A big department's staff list scrolls on its own, so the other rows stay in reach. */
-            #breakdown_body .breakdown-staff-list {
-                max-height: 420px;
-                overflow-y: auto;
-            }
-
-            #breakdown_body .breakdown-group-row:hover > td {
-                background: #eef4fc;
-            }
-
-            #breakdown_body .breakdown-group-row .fa {
-                color: #2a78d6;
-                width: 12px;
-            }
-
-            #breakdown_body .breakdown-staff-row > td {
-                background: #f7f7f5;
-                padding: 4px 10px 12px 34px;
-            }
-
-            #breakdown_body .breakdown-staff-row table {
-                margin: 6px 0 0;
-                background: #fff;
             }
 
             .dash-chart-scroll {
@@ -408,53 +370,53 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                         <div class="panel-body">
                             <div class="dash-tiles">
                                 <div class="dash-tiles-item">
-                                    <div class="dash-tile dash-tile-link" data-breakdown="total" role="button" tabindex="0">
+                                    <a class="dash-tile dash-tile-link" data-breakdown="total" href="skill-matrix-breakdown.php?tile=total">
                                         <div class="dash-tile-value" id="kpi-total">0</div>
                                         <div class="dash-tile-label">Total Staff</div>
                                         <div class="dash-tile-hint"><i class="fa fa-list-ul"></i> View breakdown</div>
-                                    </div>
+                                    </a>
                                 </div>
                                 <div class="dash-tiles-item">
-                                    <div class="dash-tile dash-tile-link" data-breakdown="completion" role="button" tabindex="0" style="border-left-color: var(--status-good);">
+                                    <a class="dash-tile dash-tile-link" data-breakdown="completion" href="skill-matrix-breakdown.php?tile=completion" style="border-left-color: var(--status-good);">
                                         <div class="dash-tile-value" id="kpi-completion">0%</div>
                                         <div class="dash-tile-label">Completion Rate</div>
                                         <div class="dash-tile-hint"><i class="fa fa-list-ul"></i> View breakdown</div>
-                                    </div>
+                                    </a>
                                 </div>
                                 <div class="dash-tiles-item">
-                                    <div class="dash-tile dash-tile-link" data-breakdown="approved" role="button" tabindex="0" style="border-left-color: var(--status-good);">
+                                    <a class="dash-tile dash-tile-link" data-breakdown="approved" href="skill-matrix-breakdown.php?tile=approved" style="border-left-color: var(--status-good);">
                                         <div class="dash-tile-value" id="kpi-approved">0</div>
                                         <div class="dash-tile-label">Approved</div>
                                         <div class="dash-tile-hint"><i class="fa fa-list-ul"></i> View breakdown</div>
-                                    </div>
+                                    </a>
                                 </div>
                                 <div class="dash-tiles-item">
-                                    <div class="dash-tile dash-tile-link" data-breakdown="waiting" role="button" tabindex="0" style="border-left-color: var(--status-warning);">
+                                    <a class="dash-tile dash-tile-link" data-breakdown="waiting" href="skill-matrix-breakdown.php?tile=waiting" style="border-left-color: var(--status-warning);">
                                         <div class="dash-tile-value" id="kpi-waiting">0</div>
                                         <div class="dash-tile-label">Waiting Approval</div>
                                         <div class="dash-tile-hint"><i class="fa fa-list-ul"></i> View breakdown</div>
-                                    </div>
+                                    </a>
                                 </div>
                                 <div class="dash-tiles-item">
-                                    <div class="dash-tile dash-tile-link" data-breakdown="draft" role="button" tabindex="0" style="border-left-color: var(--status-serious);">
+                                    <a class="dash-tile dash-tile-link" data-breakdown="draft" href="skill-matrix-breakdown.php?tile=draft" style="border-left-color: var(--status-serious);">
                                         <div class="dash-tile-value" id="kpi-draft">0</div>
                                         <div class="dash-tile-label">Draft</div>
                                         <div class="dash-tile-hint"><i class="fa fa-list-ul"></i> View breakdown</div>
-                                    </div>
+                                    </a>
                                 </div>
                                 <div class="dash-tiles-item">
-                                    <div class="dash-tile dash-tile-link" data-breakdown="notsubmitted" role="button" tabindex="0" style="border-left-color: var(--status-critical);">
+                                    <a class="dash-tile dash-tile-link" data-breakdown="notsubmitted" href="skill-matrix-breakdown.php?tile=notsubmitted" style="border-left-color: var(--status-critical);">
                                         <div class="dash-tile-value" id="kpi-notsubmitted">0</div>
                                         <div class="dash-tile-label">Not Submitted</div>
                                         <div class="dash-tile-hint"><i class="fa fa-list-ul"></i> View breakdown</div>
-                                    </div>
+                                    </a>
                                 </div>
                                 <div class="dash-tiles-item">
-                                    <div class="dash-tile dash-tile-link" data-breakdown="below50" role="button" tabindex="0" style="border-left-color: var(--status-critical);" title="Staff whose approved skill matrix scores below 50% (Novice or Minimal Competency)">
+                                    <a class="dash-tile dash-tile-link" data-breakdown="below50" href="skill-matrix-breakdown.php?tile=below50" style="border-left-color: var(--status-critical);" title="Staff whose approved skill matrix scores below 50% (Novice or Minimal Competency)">
                                         <div class="dash-tile-value" id="kpi-below50">0</div>
                                         <div class="dash-tile-label">Score Below 50%</div>
                                         <div class="dash-tile-hint"><i class="fa fa-list-ul"></i> View breakdown</div>
-                                    </div>
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -638,22 +600,6 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             </div>
         </div>
 
-        <!-- Breakdown behind an overview tile, filled by showTileBreakdown(). -->
-        <div class="modal fade" id="breakdown_modal" tabindex="-1" role="dialog">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
-                        <h4 class="modal-title" id="breakdown_title"></h4>
-                        <small class="text-muted" id="breakdown_subtitle"></small>
-                    </div>
-                    <div class="modal-body" id="breakdown_body"></div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                    </div>
-                </div>
-            </div>
-        </div>
     </body>
 
     <script>
@@ -705,6 +651,14 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
                     data.section = $('#section').val() || "ALL";
                     data.plant = $('#plant').val() || "ALL";
                     data.include_off = includeOffDepartments();
+                    // The filter this load is for, which the overview tiles pass on.
+                    dashboardFilter = {
+                        department: data.department,
+                        section: data.section,
+                        plant: data.plant,
+                        period: data.period,
+                        include_off: data.include_off
+                    };
                 }
             },
             "columns": [
@@ -783,7 +737,7 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
 
         function renderDashboard(rows) {
             rows = rows || [];
-            dashboardRows = rows;
+            updateTileLinks();
             var total = rows.length;
             var counts = emptyStatusCounts();
             rows.forEach(function (r) {
@@ -807,217 +761,17 @@ if (isset($_SESSION['fullname']) && ($_SESSION['role'] == 'ADMIN' || $canUseSkil
             renderSkillMatrixCharts(rows, !departmentFilterActive);
         }
 
-        // ===== Overview tiles: click one to see its count by department (by section
-        // when a department is picked, like the charts), with the staff behind it =====
-        var dashboardRows = [];
+        // ===== Overview tiles open skill-matrix-breakdown.php for the filter the dashboard is showing =====
+        var dashboardFilter = null;
 
-        function escapeHtml(text) {
-            return $('<div>').text(text === null || text === undefined ? '' : text).html();
-        }
-
-        function hasStatus(status) {
-            return function (r) { return r.approval_status_raw == status; };
-        }
-
-        function isBelow50(r) {
-            return r.overall_score !== null && r.overall_score !== undefined && parseFloat(r.overall_score) < 50;
-        }
-
-        // count: the staff the tile counts. list: the staff listed when a group is
-        // expanded, if not the counted ones (Completion Rate lists who is still outstanding).
-        var TILE_BREAKDOWNS = {
-            total: { title: 'Total Staff', count: function () { return true; }, statusColumns: true, showStatus: true },
-            completion: { title: 'Completion Rate', count: hasStatus('APPROVED'), list: function (r) { return r.approval_status_raw != 'APPROVED'; }, rate: true, showStatus: true },
-            approved: { title: 'Approved', count: hasStatus('APPROVED'), showScore: true },
-            waiting: { title: 'Waiting Approval', count: hasStatus('WAITING APPROVAL') },
-            draft: { title: 'Draft', count: hasStatus('DRAFT') },
-            notsubmitted: { title: 'Not Submitted', count: hasStatus('NOT SUBMITTED') },
-            below50: { title: 'Score Below 50%', count: isBelow50, showScore: true }
-        };
-
-        // The groups in the open modal, for building a staff list when one is expanded.
-        var breakdownGroups = [];
-        var breakdownTile = null;
-        var breakdownByDepartment = true;
-
-        function percentText(part, whole) {
-            return whole > 0 ? Math.round((part / whole) * 100) + '%' : '-';
-        }
-
-        function showTileBreakdown(key) {
-            var tile = TILE_BREAKDOWNS[key];
-            if (!tile) {
+        function updateTileLinks() {
+            if (!dashboardFilter) {
                 return;
             }
-            breakdownTile = tile;
-            breakdownByDepartment = !($('#department').val() && $('#department').val() != 'ALL');
-            var groupLabel = breakdownByDepartment ? 'Department' : 'Section';
-            var listFn = tile.list || tile.count;
-
-            var groupsByName = {};
-            var totalCount = 0;
-            dashboardRows.forEach(function (r) {
-                var name = ((breakdownByDepartment ? r.department : r.section) || '').toString().trim() || '(Unspecified)';
-                if (!groupsByName[name]) {
-                    groupsByName[name] = { name: name, total: 0, count: 0, statuses: emptyStatusCounts(), staff: [] };
-                }
-                var group = groupsByName[name];
-                group.total++;
-                if (group.statuses.hasOwnProperty(r.approval_status_raw)) {
-                    group.statuses[r.approval_status_raw]++;
-                }
-                if (tile.count(r)) {
-                    group.count++;
-                    totalCount++;
-                }
-                if (listFn(r)) {
-                    group.staff.push(r);
-                }
+            $('.dash-tile-link').each(function () {
+                $(this).attr('href', 'skill-matrix-breakdown.php?' + $.param($.extend({ tile: $(this).data('breakdown') }, dashboardFilter)));
             });
-
-            // Total and Completion Rate show every group; the others only groups with staff in that count.
-            breakdownGroups = $.map(groupsByName, function (group) { return group; }).filter(function (group) {
-                return tile.statusColumns || tile.rate || group.count > 0;
-            });
-            breakdownGroups.sort(function (a, b) {
-                if (tile.rate) {
-                    var diff = a.count / a.total - b.count / b.total;
-                    if (diff !== 0) {
-                        return diff;
-                    }
-                } else if (b.count !== a.count) {
-                    return b.count - a.count;
-                }
-                return a.name.localeCompare(b.name);
-            });
-
-            $('#breakdown_title').text(tile.title + ' by ' + groupLabel);
-            $('#breakdown_subtitle').text($('#period_tabs li.active a').text() +
-                (breakdownByDepartment ? '' : ' — ' + $('#department').val()));
-
-            var html;
-            if (breakdownGroups.length === 0) {
-                html = '<div class="text-muted text-center" style="padding:30px 0;">No staff for the current filter.</div>';
-            } else {
-                var groupWord = groupLabel.toLowerCase() + (breakdownGroups.length == 1 ? '' : 's');
-                var summary;
-                if (tile.rate) {
-                    summary = '<strong>' + totalCount + '</strong> of <strong>' + dashboardRows.length + '</strong> staff approved (' +
-                        percentText(totalCount, dashboardRows.length) + '). Lowest completion first. Click a ' + groupLabel.toLowerCase() +
-                        ' to see the staff not approved yet.';
-                } else {
-                    summary = '<strong>' + totalCount + '</strong> staff in <strong>' + breakdownGroups.length + '</strong> ' + groupWord +
-                        '. Click a ' + groupLabel.toLowerCase() + ' to see the staff.';
-                }
-
-                var head = '<th class="text-center" style="width:60px;">No.</th><th>' + groupLabel + '</th>';
-                if (tile.statusColumns) {
-                    head += '<th class="text-center">Total Staff</th><th class="text-center">Approved</th>' +
-                        '<th class="text-center">Waiting Approval</th><th class="text-center">Draft</th>' +
-                        '<th class="text-center">Not Submitted</th><th class="text-center">Completion</th>';
-                } else if (tile.rate) {
-                    head += '<th class="text-center">Approved</th><th class="text-center">Total Staff</th>' +
-                        '<th class="text-center">Completion</th>';
-                } else {
-                    head += '<th class="text-center">' + escapeHtml(tile.title) + '</th><th class="text-center">Total Staff</th>' +
-                        '<th class="text-center">% of ' + groupLabel + '</th>';
-                }
-                var columnCount = $('<tr>' + head + '</tr>').children().length;
-
-                var body = '';
-                breakdownGroups.forEach(function (group, index) {
-                    body += '<tr class="breakdown-group-row" data-index="' + index + '">' +
-                        '<td class="text-center"><i class="fa fa-chevron-right"></i> ' + (index + 1) + '</td>' +
-                        '<td>' + escapeHtml(group.name) + '</td>';
-                    if (tile.statusColumns) {
-                        body += '<td class="text-center"><strong>' + group.total + '</strong></td>' +
-                            '<td class="text-center">' + group.statuses['APPROVED'] + '</td>' +
-                            '<td class="text-center">' + group.statuses['WAITING APPROVAL'] + '</td>' +
-                            '<td class="text-center">' + group.statuses['DRAFT'] + '</td>' +
-                            '<td class="text-center">' + group.statuses['NOT SUBMITTED'] + '</td>' +
-                            '<td class="text-center">' + percentText(group.statuses['APPROVED'], group.total) + '</td>';
-                    } else if (tile.rate) {
-                        body += '<td class="text-center">' + group.count + '</td>' +
-                            '<td class="text-center">' + group.total + '</td>' +
-                            '<td class="text-center"><strong>' + percentText(group.count, group.total) + '</strong></td>';
-                    } else {
-                        body += '<td class="text-center"><strong>' + group.count + '</strong></td>' +
-                            '<td class="text-center">' + group.total + '</td>' +
-                            '<td class="text-center">' + percentText(group.count, group.total) + '</td>';
-                    }
-                    body += '</tr>' +
-                        '<tr class="breakdown-staff-row" style="display:none;"><td colspan="' + columnCount + '"></td></tr>';
-                });
-
-                html = '<p>' + summary + '</p>' +
-                    '<table class="table table-bordered table-condensed" style="margin-bottom:0;">' +
-                    '<thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
-            }
-
-            $('#breakdown_body').html(html);
-            $('#breakdown_modal').modal('show');
         }
-
-        // Staff behind one group, built the first time it is expanded.
-        function breakdownStaffTable(group) {
-            if (group.staff.length === 0) {
-                return '<div class="text-muted" style="padding-top:8px;">No staff to list.</div>';
-            }
-            var tile = breakdownTile;
-            var head = '<th class="text-center" style="width:40px;">No.</th><th class="text-center">Staff No.</th><th>Employee Name</th>' +
-                (breakdownByDepartment ? '<th>Section</th>' : '') + '<th>Plant</th>' +
-                (tile.showStatus ? '<th class="text-center">Approval Status</th>' : '') +
-                (tile.showScore ? '<th class="text-center">Skill Score</th>' : '') +
-                '<th class="text-center">Action</th>';
-
-            var staff = group.staff.slice().sort(function (a, b) {
-                if (tile.showScore) {
-                    return parseFloat(a.overall_score) - parseFloat(b.overall_score);
-                }
-                return String(a.staffname).localeCompare(String(b.staffname));
-            });
-
-            var body = '';
-            staff.forEach(function (r, index) {
-                body += '<tr><td class="text-center">' + (index + 1) + '</td>' +
-                    '<td class="text-center">' + escapeHtml(r.staffno) + '</td>' +
-                    '<td>' + escapeHtml(r.staffname) + '</td>' +
-                    (breakdownByDepartment ? '<td>' + escapeHtml(r.section) + '</td>' : '') +
-                    '<td>' + escapeHtml(r.plant) + '</td>';
-                if (tile.showStatus) {
-                    body += '<td class="text-center">' + r.approval_status + '</td>';
-                }
-                if (tile.showScore) {
-                    var score = parseFloat(r.overall_score);
-                    body += '<td class="text-center"><span class="' + (score < 50 ? 'skill-score-low' : '') + '">' + score.toFixed(1) + '%</span>' +
-                        '<span class="skill-score-level">' + scoreLevelLabel(score) + '</span></td>';
-                }
-                body += '<td class="text-center">' + r.action + '</td></tr>';
-            });
-
-            return '<div class="breakdown-staff-list"><table class="table table-bordered table-condensed table-striped">' +
-                '<thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
-        }
-
-        $('.dash-tile-link').on('click', function () {
-            showTileBreakdown($(this).data('breakdown'));
-        }).on('keydown', function (e) {
-            // Enter or Space, for keyboard users.
-            if (e.which == 13 || e.which == 32) {
-                e.preventDefault();
-                showTileBreakdown($(this).data('breakdown'));
-            }
-        });
-
-        $('#breakdown_body').on('click', '.breakdown-group-row', function () {
-            var $staffRow = $(this).next('.breakdown-staff-row');
-            if (!$staffRow.data('built')) {
-                $staffRow.children('td').html(breakdownStaffTable(breakdownGroups[$(this).data('index')]));
-                $staffRow.data('built', true);
-            }
-            $staffRow.toggle();
-            $(this).find('.fa').toggleClass('fa-chevron-right fa-chevron-down');
-        });
 
         // ===== Average Skill Score by Quarter: its own request, since it spans quarters =====
         var quarterScoresRequest = null;
